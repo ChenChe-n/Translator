@@ -5,10 +5,18 @@ import type {
 } from '../types/translationMode';
 import { loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
 
-const translationModeKeys: TranslationModeKey[] = ['normal', 'batch', 'context'];
+export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
+  '你是一个翻译机器，{是否保留原文格式}，将输入翻译为{目标语言(默认为界面语言)}，使用jsonl格式，每一行是一个输入或输出。如果输入不需要翻译，请原样复制 Tid。\n' +
+  '输入实例:\n' +
+  '{"2Bfn1lac-0001": "测试文本"},\n' +
+  '输出实例:\n' +
+  '{"2Bfn1lac-0001": "test text"},\n' +
+  'or\n' +
+  '{"2Bfn1lac-0001": null},';
+
+const translationModeKeys: TranslationModeKey[] = ['normal', 'context'];
 const translationModeStorageKeys: Record<TranslationModeKey, string> = {
   normal: 'Translator.translationMode.normal',
-  batch: 'Translator.translationMode.batch',
   context: 'Translator.translationMode.context',
 };
 const storageOptions = {
@@ -24,9 +32,8 @@ const storageOptions = {
  */
 export function createDefaultTranslationModeConfigMap(): TranslationModeConfigMap {
   return {
-    normal: createModeConfig('normal', 'translator/cache/normal'),
-    batch: createModeConfig('batch', 'translator/cache/batch'),
-    context: createModeConfig('context', 'translator/cache/context'),
+    normal: createModeConfig('normal', DEFAULT_NORMAL_TRANSLATION_PROMPT),
+    context: createModeConfig('context', DEFAULT_NORMAL_TRANSLATION_PROMPT),
   };
 }
 
@@ -49,13 +56,16 @@ export async function saveTranslationModeConfigMap(configMap: TranslationModeCon
   await saveConfigMapToStorage(storageOptions, configMap);
 }
 
-function createModeConfig(mode: TranslationModeKey, cachePath: string): TranslationModeConfig {
+function createModeConfig(mode: TranslationModeKey, prompt: string): TranslationModeConfig {
   return {
     mode,
-    cachePath,
+    prompt,
     parameters: {
       temperature: 0.3,
       maxTokens: 2048,
+      batchMaxItems: 1,
+      batchMaxTokens: 16 * 1024,
+      batchWaitMs: 300,
     },
     options: {
       preserveFormatting: true,
@@ -82,13 +92,21 @@ function normalizeModeConfig(
     ...defaultConfig,
     ...config,
     mode,
+    prompt: config?.prompt || defaultConfig.prompt,
     parameters: {
       ...defaultConfig.parameters,
       ...config?.parameters,
+      batchMaxItems: normalizeNumber(config?.parameters?.batchMaxItems, 1, 1024, defaultConfig.parameters.batchMaxItems),
+      batchMaxTokens: normalizeNumber(config?.parameters?.batchMaxTokens, 1, 128000, defaultConfig.parameters.batchMaxTokens),
+      batchWaitMs: normalizeNumber(config?.parameters?.batchWaitMs, 0, 60000, defaultConfig.parameters.batchWaitMs),
     },
     options: {
       ...defaultConfig.options,
       ...config?.options,
     },
   };
+}
+
+function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
 }

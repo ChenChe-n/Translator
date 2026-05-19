@@ -32,6 +32,19 @@
         <ElCheckbox :model-value="activeConfig.options.showTextMarker" @change="handleShowTextMarkerUpdate">
           {{ t('textParseMode.showTextMarker') }}
         </ElCheckbox>
+        <div class="test-text-row">
+          <ElCheckbox
+            :model-value="activeConfig.options.overwriteWithTestText"
+            @change="handleOverwriteWithTestTextUpdate"
+          >
+            {{ t('textParseMode.overwriteWithTestText') }}
+          </ElCheckbox>
+          <ElInput
+            :model-value="activeConfig.options.testText"
+            :placeholder="t('textParseMode.testTextPlaceholder')"
+            @update:model-value="handleTestTextUpdate"
+          />
+        </div>
         <div v-if="activeMode === 'structured'" class="option-row">
           <ElCheckbox :model-value="activeConfig.options.preserveId" @change="handlePreserveIdUpdate">
             {{ t('textParseMode.preserveId') }}
@@ -52,7 +65,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElCheckbox, ElForm, ElFormItem, ElInputNumber } from 'element-plus';
+import { ElCheckbox, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus';
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import type { TextParseModeConfigMap, TextParseModeKey } from '../../types/textParseMode';
@@ -94,6 +107,14 @@ function handleShowTextMarkerUpdate(value: string | number | boolean): void {
   updateStructuredOptions('showTextMarker', Boolean(value));
 }
 
+function handleOverwriteWithTestTextUpdate(value: string | number | boolean): void {
+  updateStructuredOptions('overwriteWithTestText', Boolean(value));
+}
+
+function handleTestTextUpdate(value: string | number): void {
+  updateStructuredOptions('testText', String(value));
+}
+
 function handlePreserveIdUpdate(value: string | number | boolean): void {
   updateStructuredOptions('preserveId', Boolean(value));
 }
@@ -110,7 +131,10 @@ function handlePreserveUrlUpdate(value: string | number | boolean): void {
   updateStructuredOptions('preserveUrl', Boolean(value));
 }
 
-function updateStructuredOptions(key: keyof TextParseModeConfigMap['structured']['options'], value: boolean): void {
+function updateStructuredOptions(
+  key: keyof TextParseModeConfigMap['structured']['options'],
+  value: boolean | string,
+): void {
   updateActiveConfig({
     options: {
       ...activeConfig.value.options,
@@ -217,5 +241,12 @@ function updateActiveConfig(config: Partial<TextParseModeConfigMap[TextParseMode
 .option-row {
   display: grid;
   gap: 8px;
+}
+
+.test-text-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
 }
 </style>

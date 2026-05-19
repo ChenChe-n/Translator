@@ -15,58 +15,20 @@
       </button>
     </div>
     <section v-if="expanded" class="mode-form">
-      <ElForm label-position="top">
-        <ElFormItem :label="t('translationMode.cachePath')">
-          <ElInput
-            :model-value="activeConfig.cachePath"
-            :placeholder="t('translationMode.cachePathPlaceholder')"
-            clearable
-            @update:model-value="handleCachePathUpdate"
-          />
-        </ElFormItem>
-        <div class="parameter-row">
-          <ElFormItem :label="t('translationMode.temperature')">
-            <ElInputNumber
-              :model-value="activeConfig.parameters.temperature"
-              :min="0"
-              :max="2"
-              :step="0.1"
-              controls-position="right"
-              @change="handleTemperatureUpdate"
-            />
-          </ElFormItem>
-          <ElFormItem :label="t('translationMode.maxTokens')">
-            <ElInputNumber
-              :model-value="activeConfig.parameters.maxTokens"
-              :min="1"
-              :max="128000"
-              :step="256"
-              controls-position="right"
-              @change="handleMaxTokensUpdate"
-            />
-          </ElFormItem>
-        </div>
-        <div class="option-row">
-          <ElCheckbox
-            :model-value="activeConfig.options.preserveFormatting"
-            @change="handlePreserveFormattingUpdate"
-          >
-            {{ t('translationMode.preserveFormatting') }}
-          </ElCheckbox>
-          <ElCheckbox :model-value="activeConfig.options.enableCache" @change="handleEnableCacheUpdate">
-            {{ t('translationMode.enableCache') }}
-          </ElCheckbox>
-        </div>
-      </ElForm>
+      <NormalTranslationForm
+        :config="activeConfig"
+        :show-normal-options="activeMode === 'normal'"
+        @update="updateActiveConfig"
+      />
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
-import { ElCheckbox, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus';
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import type { TranslationModeConfigMap, TranslationModeKey } from '../../types/translationMode';
+import NormalTranslationForm from './NormalTranslationForm.vue';
 
 const props = defineProps<{
   configMap: TranslationModeConfigMap;
@@ -79,7 +41,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useI18n();
-const modeKeys: TranslationModeKey[] = ['normal', 'batch', 'context'];
+const modeKeys: TranslationModeKey[] = ['normal', 'context'];
 
 const activeMode = defineModel<TranslationModeKey>('activeMode', { required: true });
 const activeConfig = computed(() => props.configMap[activeMode.value]);
@@ -89,48 +51,6 @@ const modeOptions = computed(() =>
     value,
   })),
 );
-
-function handleCachePathUpdate(value: string | number): void {
-  updateActiveConfig({
-    cachePath: String(value),
-  });
-}
-
-function handleTemperatureUpdate(value: number | undefined): void {
-  updateActiveConfig({
-    parameters: {
-      ...activeConfig.value.parameters,
-      temperature: value ?? 0.3,
-    },
-  });
-}
-
-function handleMaxTokensUpdate(value: number | undefined): void {
-  updateActiveConfig({
-    parameters: {
-      ...activeConfig.value.parameters,
-      maxTokens: value ?? 2048,
-    },
-  });
-}
-
-function handlePreserveFormattingUpdate(value: string | number | boolean): void {
-  updateActiveConfig({
-    options: {
-      ...activeConfig.value.options,
-      preserveFormatting: Boolean(value),
-    },
-  });
-}
-
-function handleEnableCacheUpdate(value: string | number | boolean): void {
-  updateActiveConfig({
-    options: {
-      ...activeConfig.value.options,
-      enableCache: Boolean(value),
-    },
-  });
-}
 
 function updateActiveConfig(config: Partial<TranslationModeConfigMap[TranslationModeKey]>): void {
   emit('update', {
@@ -211,18 +131,4 @@ function updateActiveConfig(config: Partial<TranslationModeConfigMap[Translation
   margin-bottom: 10px;
 }
 
-.parameter-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 10px;
-}
-
-.parameter-row :deep(.el-input-number) {
-  width: 100%;
-}
-
-.option-row {
-  display: grid;
-  gap: 8px;
-}
 </style>

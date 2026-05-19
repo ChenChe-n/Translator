@@ -104,6 +104,8 @@ function createStructuredOptions(enabled: boolean): TextParseModeOptions {
     preserveStyle: false,
     preserveUrl: enabled,
     showTextMarker: false,
+    overwriteWithTestText: false,
+    testText: 'test text',
   };
 }
 

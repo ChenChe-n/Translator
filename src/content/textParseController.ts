@@ -68,6 +68,10 @@ export function createTextParseController(): { start: () => void } {
         clearTextMarkers();
       }
 
+      if (config.activeConfig.options.overwriteWithTestText) {
+        overwriteTextReferences([...references.values()], config.activeConfig.options.testText);
+      }
+
       await appendTextParseMetric({
         id: `parse-${Date.now()}`,
         mode: config.activeMode,
@@ -100,6 +104,23 @@ export function createTextParseController(): { start: () => void } {
       void start();
     },
   };
+}
+
+function overwriteTextReferences(references: ParsedTextReference[], text: string): void {
+  references.forEach((reference) => {
+    if (!reference.owner.isConnected) {
+      return;
+    }
+
+    if (reference.kind === 'text' && reference.node.isConnected) {
+      reference.node.nodeValue = text;
+      return;
+    }
+
+    if (reference.kind === 'attribute') {
+      reference.owner.setAttribute(reference.attributeName, text);
+    }
+  });
 }
 
 function shouldReloadConfig(changes: Record<string, chrome.storage.StorageChange>): boolean {

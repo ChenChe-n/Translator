@@ -13,6 +13,10 @@ interface ChatResponse {
   };
 }
 
+export interface StreamTextOptions {
+  onContent?: (content: string) => void;
+}
+
 const JSON_HEADERS = {
   'Content-Type': 'application/json',
 };
@@ -102,7 +106,7 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
  * @param prompt 提示词。
  * @returns 完整流式输出文本。
  */
-export async function requestStream(config: ApiConfig, prompt: string): Promise<string> {
+export async function requestStream(config: ApiConfig, prompt: string, options: StreamTextOptions = {}): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
   const response = await requestChat(config, {
     stream: true,
@@ -114,7 +118,7 @@ export async function requestStream(config: ApiConfig, prompt: string): Promise<
     ],
   });
 
-  const content = await readStreamContent(response);
+  const content = await readStreamContent(response, options.onContent);
   await recordUsage(config, inputTokens, content);
   return content;
 }
@@ -139,6 +143,17 @@ async function requestChat(config: ApiConfig, body: Record<string, unknown>): Pr
   return response;
 }
 
+/**
+ * 请求 OpenAI 兼容聊天接口。
+ *
+ * @param config API 配置。
+ * @param body 请求体。
+ * @returns API 响应。
+ */
+export async function requestChatResponse(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
+  return requestChat(config, body);
+}
+
 async function readAndRecordChatContent(
   config: ApiConfig,
   response: Response,
@@ -150,7 +165,7 @@ async function readAndRecordChatContent(
   return content;
 }
 
-async function readStreamContent(response: Response): Promise<string> {
+async function readStreamContent(response: Response, onContent?: (content: string) => void): Promise<string> {
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   let content = '';
@@ -171,10 +186,17 @@ async function readStreamContent(response: Response): Promise<string> {
     const parsed = parseStreamBuffer(buffer);
     buffer = parsed.rest;
     content += parsed.content;
+    if (parsed.content) {
+      onContent?.(parsed.content);
+    }
   }
 
   buffer += decoder.decode();
-  content += parseStreamBuffer(`${buffer}\n`).content;
+  const parsed = parseStreamBuffer(`${buffer}\n`);
+  content += parsed.content;
+  if (parsed.content) {
+    onContent?.(parsed.content);
+  }
   return content;
 }
 

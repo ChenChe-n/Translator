@@ -1,7 +1,7 @@
 /**
  * 翻译模式标识。
  */
-export type TranslationModeKey = 'normal' | 'batch' | 'context';
+export type TranslationModeKey = 'normal' | 'context';
 
 /**
  * 翻译模式参数。
@@ -9,6 +9,9 @@ export type TranslationModeKey = 'normal' | 'batch' | 'context';
 export interface TranslationModeParameters {
   temperature: number;
   maxTokens: number;
+  batchMaxItems: number;
+  batchMaxTokens: number;
+  batchWaitMs: number;
 }
 
 /**
@@ -24,7 +27,7 @@ export interface TranslationModeOptions {
  */
 export interface TranslationModeConfig {
   mode: TranslationModeKey;
-  cachePath: string;
+  prompt: string;
   parameters: TranslationModeParameters;
   options: TranslationModeOptions;
 }
