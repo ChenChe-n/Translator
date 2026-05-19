@@ -52,6 +52,7 @@ const configState = reactive<ApiConfigState>(createDefaultApiConfigState());
 const configExpanded = ref(false);
 const testing = ref(false);
 const checkResults = ref<ApiCheckResult[]>(createDefaultApiCheckResults());
+const checkResultCache = reactive<Record<string, ApiCheckResult[]>>({});
 const modelUsage = ref<ModelDailyUsage[]>([]);
 const usageSettings = ref<UsageStatsSettings>({
   retentionDays: 30,
@@ -87,14 +88,16 @@ async function handleSaveConfig(): Promise<void> {
 
 async function handleRunChecks(): Promise<void> {
   testing.value = true;
+  const testingConfig = { ...config.value };
+  const testingConfigId = testingConfig.id;
 
   try {
     ensureConfig();
     await saveConfigState();
+    await cacheCheckResults(testingConfigId, createDefaultApiCheckResults());
 
-    for await (const result of runApiHealthChecks(config.value)) {
-      updateCheckResult(result);
-      await saveApiCheckResults(configState.activeConfigId, checkResults.value);
+    for await (const result of runApiHealthChecks(testingConfig)) {
+      await updateCheckResult(testingConfigId, result);
       await refreshModelUsage();
     }
   } catch (error) {
@@ -142,7 +145,8 @@ async function handleSelectConfig(id: string): Promise<void> {
 
   configState.activeConfigId = id;
   configExpanded.value = true;
-  await refreshCheckResults();
+  setVisibleCheckResults(id);
+  await refreshCheckResults(id);
   await saveConfigState();
 }
 
@@ -184,17 +188,41 @@ function normalizeActiveConfigName(): void {
   activeConfig.name = activeConfig.name || activeConfig.model;
 }
 
-function updateCheckResult(result: ApiCheckResult): void {
-  checkResults.value = checkResults.value.map((item) => (item.key === result.key ? result : item));
+async function updateCheckResult(configId: string, result: ApiCheckResult): Promise<void> {
+  const nextResults = getCachedCheckResults(configId).map((item) => (item.key === result.key ? result : item));
+  await cacheCheckResults(configId, nextResults);
 }
 
 async function refreshModelUsage(): Promise<void> {
   modelUsage.value = await loadModelDailyUsage();
 }
 
-async function refreshCheckResults(): Promise<void> {
-  const storedResults = await loadApiCheckResults(configState.activeConfigId);
-  checkResults.value = storedResults.length > 0 ? mergeResults(storedResults) : createDefaultApiCheckResults();
+async function refreshCheckResults(configId = configState.activeConfigId): Promise<void> {
+  const storedResults = await loadApiCheckResults(configId);
+  const nextResults = storedResults.length > 0 ? mergeResults(storedResults) : createDefaultApiCheckResults();
+  checkResultCache[configId] = nextResults;
+
+  if (configState.activeConfigId === configId) {
+    checkResults.value = nextResults;
+  }
+}
+
+async function cacheCheckResults(configId: string, results: ApiCheckResult[]): Promise<void> {
+  checkResultCache[configId] = results;
+
+  if (configState.activeConfigId === configId) {
+    checkResults.value = results;
+  }
+
+  await saveApiCheckResults(configId, results);
+}
+
+function setVisibleCheckResults(configId: string): void {
+  checkResults.value = checkResultCache[configId] ?? createDefaultApiCheckResults();
+}
+
+function getCachedCheckResults(configId: string): ApiCheckResult[] {
+  return checkResultCache[configId] ?? createDefaultApiCheckResults();
 }
 
 function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {

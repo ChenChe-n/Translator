@@ -16,7 +16,7 @@ interface ApiCheckDefinition {
 
 const BASIC_TEXT_TOKEN = 'TRANSLATOR_TEXT_OK';
 const STREAM_TOKEN = 'TRANSLATOR_STREAM_OK';
-const TOKEN_TARGET = 300;
+const TOKEN_TARGET = 100;
 
 const checkDefinitions: ApiCheckDefinition[] = [
   {
