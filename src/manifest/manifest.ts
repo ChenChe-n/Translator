@@ -4,7 +4,7 @@ const manifest: ManifestV3 = {
   manifest_version: 3,
   name: 'Translator',
   version: '0.1.0',
-  description: '空白 Chromium 浏览器插件',
+  description: 'Translator',
   action: {
     default_title: 'Translator',
     default_popup: 'index.html',

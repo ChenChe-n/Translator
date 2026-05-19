@@ -1,6 +1,6 @@
 # Translator
 
-空白 Chromium 浏览器插件骨架，使用 TypeScript、Vue 3、Vite 与 Element Plus。
+Translator 使用 TypeScript、Vue 3、Vite 与 Element Plus。
 
 ## 开发命令
 

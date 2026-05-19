@@ -1,4 +1,4 @@
-export const CURRENT_PAGE_PORT_NAME = 'translator-current-page-port';
+export const CURRENT_PAGE_PORT_NAME = 'Translator-current-page-port';
 
 export type ExtensionMessage =
   | {

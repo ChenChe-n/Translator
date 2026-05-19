@@ -1,9 +1,9 @@
 {
-  "name": "translator-extension",
+  "name": "Translator",
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "空白 Chromium 浏览器插件",
+  "description": "Translator",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vue-tsc --noEmit && vite build",
