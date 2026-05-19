@@ -1,6 +1,6 @@
 import type { ModelDailyUsage, ModelUsageRecordInput, UsageStatsSettings } from '../types/api';
 
-const USAGE_STORAGE_KEY = 'Translator.modelDailyUsage';
+export const USAGE_STORAGE_KEY = 'Translator.modelDailyUsage';
 const SETTINGS_STORAGE_KEY = 'Translator.usageStatsSettings';
 const DEFAULT_RETENTION_DAYS = 30;
 
@@ -70,6 +70,35 @@ export async function recordModelUsage(input: ModelUsageRecordInput): Promise<vo
   const [settings, usage] = await Promise.all([loadUsageStatsSettings(), loadModelDailyUsage()]);
   const nextUsage = upsertTodayUsage(usage, input);
   await saveModelDailyUsage(pruneUsage(nextUsage, settings.retentionDays));
+}
+
+/**
+ * 清空模型使用统计。
+ *
+ * @returns 无返回值。
+ */
+export async function clearModelDailyUsage(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(USAGE_STORAGE_KEY);
+    return;
+  }
+
+  await chrome.storage.local.remove(USAGE_STORAGE_KEY);
+}
+
+/**
+ * 清空模型使用统计设置。
+ *
+ * @returns 默认统计设置。
+ */
+export async function clearUsageStatsSettings(): Promise<UsageStatsSettings> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    return createDefaultSettings();
+  }
+
+  await chrome.storage.local.remove(SETTINGS_STORAGE_KEY);
+  return createDefaultSettings();
 }
 
 /**

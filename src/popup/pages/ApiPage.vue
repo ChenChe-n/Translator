@@ -1,5 +1,6 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.api')">
+    <PageClearButton @clear="handleClearPage" />
     <section class="config-block">
       <h2 class="block-title">{{ t('api.models.title') }}</h2>
       <p class="block-description">{{ t('api.models.description') }}</p>
@@ -31,7 +32,8 @@
 
 <script setup lang="ts">
 import { ElButton, ElMessage } from 'element-plus';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
+import PageClearButton from '../components/common/PageClearButton.vue';
 import ApiConfigForm from '../components/api/ApiConfigForm.vue';
 import ApiConfigTabs from '../components/api/ApiConfigTabs.vue';
 import ApiCheckResultList from '../components/api/ApiCheckResultList.vue';
@@ -39,6 +41,8 @@ import ModelUsageStats from '../components/usage/ModelUsageStats.vue';
 import { useI18n } from '../composables/useI18n';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
 import {
+  clearApiCheckResults,
+  clearApiConfigState,
   loadApiCheckResults,
   createApiConfig,
   createDefaultApiConfigState,
@@ -47,10 +51,13 @@ import {
   saveApiConfigState,
 } from '../services/apiConfigStorage';
 import {
+  clearModelDailyUsage,
+  clearUsageStatsSettings,
   loadModelDailyUsage,
   loadUsageStatsSettings,
   pruneUsage,
   saveUsageStatsSettings,
+  USAGE_STORAGE_KEY,
 } from '../services/modelUsageStorage';
 import type { ApiCheckResult, ApiConfig, ApiConfigState, ModelDailyUsage, UsageStatsSettings } from '../types/api';
 
@@ -86,12 +93,33 @@ onMounted(async () => {
   usageSettings.value = storedSettings;
 
   await refreshCheckResults();
+  chrome.storage?.onChanged?.addListener(handleStorageChanged);
+});
+
+onUnmounted(() => {
+  chrome.storage?.onChanged?.removeListener(handleStorageChanged);
 });
 
 async function handleSaveConfig(): Promise<void> {
   ensureConfig();
   await saveConfigState();
   ElMessage.success(t('api.messages.saved'));
+}
+
+async function handleClearPage(): Promise<void> {
+  const [nextConfigState, , , nextUsageSettings] = await Promise.all([
+    clearApiConfigState(),
+    clearApiCheckResults(),
+    clearModelDailyUsage(),
+    clearUsageStatsSettings(),
+  ]);
+  Object.assign(configState, nextConfigState);
+  configExpanded.value = false;
+  checkResults.value = createDefaultApiCheckResults();
+  Object.keys(checkResultCache).forEach((key) => delete checkResultCache[key]);
+  modelUsage.value = [];
+  usageSettings.value = nextUsageSettings;
+  ElMessage.success(t('common.cleared'));
 }
 
 async function handleRunChecks(): Promise<void> {
@@ -164,6 +192,12 @@ async function handleRetentionChange(value: number): Promise<void> {
   };
   modelUsage.value = pruneUsage(modelUsage.value, value);
   await saveUsageStatsSettings(usageSettings.value);
+}
+
+async function handleStorageChanged(changes: Record<string, chrome.storage.StorageChange>, areaName: string): Promise<void> {
+  if (areaName === 'local' && changes[USAGE_STORAGE_KEY]) {
+    await refreshModelUsage();
+  }
 }
 
 function ensureConfig(): void {

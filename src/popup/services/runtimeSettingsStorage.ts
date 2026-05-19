@@ -53,6 +53,21 @@ export async function saveRuntimeSettings(settings: RuntimeSettings): Promise<vo
   });
 }
 
+/**
+ * 清空运行配置。
+ *
+ * @returns 默认运行配置。
+ */
+export async function clearRuntimeSettings(): Promise<RuntimeSettings> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(RUNTIME_SETTINGS_KEY);
+    return createDefaultRuntimeSettings();
+  }
+
+  await chrome.storage.local.remove(RUNTIME_SETTINGS_KEY);
+  return createDefaultRuntimeSettings();
+}
+
 function normalizeSettings(settings: StoredRuntimeSettings | undefined): RuntimeSettings {
   const defaultSettings = createDefaultRuntimeSettings();
 

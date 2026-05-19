@@ -36,6 +36,20 @@ export async function appendTextParseMetric(metric: TextParseMetric): Promise<vo
   });
 }
 
+/**
+ * 清空文本解析耗时记录。
+ *
+ * @returns 无返回值。
+ */
+export async function clearTextParseMetrics(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(TEXT_PARSE_METRICS_KEY);
+    return;
+  }
+
+  await chrome.storage.local.remove(TEXT_PARSE_METRICS_KEY);
+}
+
 function readPreviewMetrics(): TextParseMetric[] | undefined {
   const value = localStorage.getItem(TEXT_PARSE_METRICS_KEY);
   return value ? (JSON.parse(value) as TextParseMetric[]) : undefined;

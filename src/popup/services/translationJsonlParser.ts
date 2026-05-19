@@ -49,7 +49,7 @@ export function readSseContent(buffer: string): { content: string; rest: string 
 }
 
 function parseJsonlLine(line: string, idSet: Set<string>, onResult: (tid: string, text: string | null) => void): void {
-  const text = line.trim().replace(/^data:\s*/, '');
+  const text = normalizeJsonlLine(line);
 
   if (!text || text === '[DONE]') {
     return;
@@ -65,6 +65,16 @@ function parseJsonlLine(line: string, idSet: Set<string>, onResult: (tid: string
   } catch {
     // 忽略未完成或非 JSONL 行。
   }
+}
+
+function normalizeJsonlLine(line: string): string {
+  return line
+    .trim()
+    .replace(/^```(?:jsonl|json)?/i, '')
+    .replace(/```$/g, '')
+    .replace(/^data:\s*/, '')
+    .replace(/,$/, '')
+    .trim();
 }
 
 function readSseChunkContent(chunk: string): string {

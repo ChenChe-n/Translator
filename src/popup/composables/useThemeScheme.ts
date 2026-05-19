@@ -2,6 +2,7 @@ import { computed, onMounted, onUnmounted, reactive } from 'vue';
 import { applyThemeColors, resolveThemeColors, watchSystemTheme } from '../services/themeRuntime';
 import {
   createDefaultThemeSchemeState,
+  clearThemeSchemeState,
   loadThemeSchemeState,
   saveThemeSchemeState,
 } from '../services/themeSchemeStorage';
@@ -12,7 +13,7 @@ import type { ThemeSchemeState } from '../types/theme';
  *
  * @returns 配色状态。
  */
-export function useThemeScheme(): { state: ThemeSchemeState; save: () => Promise<void> } {
+export function useThemeScheme(): { reset: () => Promise<void>; state: ThemeSchemeState; save: () => Promise<void> } {
   const state = reactive<ThemeSchemeState>(createDefaultThemeSchemeState());
   const activeScheme = computed(() => state.schemes.find((item) => item.id === state.activeSchemeId));
   let stopWatchingSystem: (() => void) | undefined;
@@ -32,6 +33,11 @@ export function useThemeScheme(): { state: ThemeSchemeState; save: () => Promise
     applyActiveTheme();
   }
 
+  async function reset(): Promise<void> {
+    Object.assign(state, await clearThemeSchemeState());
+    applyActiveTheme();
+  }
+
   function applyActiveTheme(): void {
     if (activeScheme.value) {
       applyThemeColors(resolveThemeColors(activeScheme.value));
@@ -39,6 +45,7 @@ export function useThemeScheme(): { state: ThemeSchemeState; save: () => Promise
   }
 
   return {
+    reset,
     state,
     save,
   };

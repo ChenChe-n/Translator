@@ -1,26 +1,51 @@
 const base64Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-const hashSalt = 0x811c9dc5;
+const hashLength = 8;
+const sequenceLength = 4;
+const registeredTexts = new Map<string, string[]>();
 
 /**
  * 创建翻译缓存键。
  *
  * @param text 原文。
- * @param index 递增序号。
+ * @param registry 缓存键注册表。
  * @returns 缓存键。
  */
-export function createTranslationCacheKey(text: string, index: number): string {
-  return `${toBase64Id(hashText(text), 8)}-${toBase64Id(index, 4)}`;
+export async function createTranslationCacheKey(text: string, registry = registeredTexts): Promise<string> {
+  const hash = await hashText(text);
+  const sequence = registerHashText(registry, hash, text);
+  return `${hash}-${toBase64Id(sequence, sequenceLength)}`;
 }
 
-function hashText(text: string): number {
-  let hash = hashSalt;
-
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
+async function hashText(text: string): Promise<string> {
+  if (globalThis.crypto?.subtle) {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return bytesToBase64(new Uint8Array(digest)).slice(0, hashLength);
   }
 
-  return hash >>> 0;
+  return bytesToBase64(fallbackHashBytes(text)).slice(0, hashLength);
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let result = '';
+
+  bytes.forEach((byte) => {
+    result += String.fromCharCode(byte);
+  });
+
+  return btoa(result).replace(/=+$/g, '');
+}
+
+function registerHashText(registry: Map<string, string[]>, hash: string, text: string): number {
+  const texts = registry.get(hash) ?? [];
+  const existingIndex = texts.indexOf(text);
+
+  if (existingIndex >= 0) {
+    return existingIndex;
+  }
+
+  texts.push(text);
+  registry.set(hash, texts);
+  return texts.length - 1;
 }
 
 function toBase64Id(value: number, length: number): string {
@@ -33,4 +58,22 @@ function toBase64Id(value: number, length: number): string {
   }
 
   return result;
+}
+
+function fallbackHashBytes(text: string): Uint8Array {
+  let hash = 0x811c9dc5;
+
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return new Uint8Array([
+    (hash >>> 24) & 255,
+    (hash >>> 16) & 255,
+    (hash >>> 8) & 255,
+    hash & 255,
+    (hash >>> 24) & 255,
+    (hash >>> 16) & 255,
+  ]);
 }

@@ -126,6 +126,21 @@ export async function saveThemeSchemeState(state: ThemeSchemeState): Promise<voi
   });
 }
 
+/**
+ * 清空配色状态。
+ *
+ * @returns 默认配色状态。
+ */
+export async function clearThemeSchemeState(): Promise<ThemeSchemeState> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(THEME_STORAGE_KEY);
+    return createDefaultThemeSchemeState();
+  }
+
+  await chrome.storage.local.remove(THEME_STORAGE_KEY);
+  return createDefaultThemeSchemeState();
+}
+
 function loadPreviewThemeSchemeState(): ThemeSchemeState {
   const value = localStorage.getItem(THEME_STORAGE_KEY);
   return normalizeState(value ? (JSON.parse(value) as ThemeSchemeState) : undefined);

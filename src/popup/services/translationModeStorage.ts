@@ -3,16 +3,14 @@ import type {
   TranslationModeConfigMap,
   TranslationModeKey,
 } from '../types/translationMode';
-import { loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
+import { clearConfigMapStorage, loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
 
 export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
-  '你是一个翻译机器，{是否保留原文格式}，将输入翻译为{目标语言(默认为界面语言)}，使用jsonl格式，每一行是一个输入或输出。如果输入不需要翻译，请原样复制 Tid。\n' +
-  '输入实例:\n' +
-  '{"2Bfn1lac-0001": "测试文本"},\n' +
-  '输出实例:\n' +
-  '{"2Bfn1lac-0001": "test text"},\n' +
-  'or\n' +
-  '{"2Bfn1lac-0001": null},';
+  'You are a translation engine.\n' +
+  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
+  'Input is JSONL: one object per line, one Tid key per object.\n' +
+  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
+  'Keep each Tid exactly as given. Translate values; copy unchanged text when no translation is needed. Use null only for empty or non-text noise.';
 
 const translationModeKeys: TranslationModeKey[] = ['normal', 'context'];
 const translationModeStorageKeys: Record<TranslationModeKey, string> = {
@@ -54,6 +52,16 @@ export async function loadTranslationModeConfigMap(): Promise<TranslationModeCon
  */
 export async function saveTranslationModeConfigMap(configMap: TranslationModeConfigMap): Promise<void> {
   await saveConfigMapToStorage(storageOptions, configMap);
+}
+
+/**
+ * 清空翻译模式配置。
+ *
+ * @returns 默认翻译模式配置集合。
+ */
+export async function clearTranslationModeConfigMap(): Promise<TranslationModeConfigMap> {
+  await clearConfigMapStorage(storageOptions);
+  return createDefaultTranslationModeConfigMap();
 }
 
 function createModeConfig(mode: TranslationModeKey, prompt: string): TranslationModeConfig {

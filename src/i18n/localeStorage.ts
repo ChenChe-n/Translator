@@ -29,6 +29,21 @@ export async function saveLocale(locale: LocaleCode): Promise<void> {
   });
 }
 
+/**
+ * 清空用户手动设置语言。
+ *
+ * @returns 解析后的环境语言。
+ */
+export async function clearLocale(): Promise<LocaleCode> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(LOCALE_STORAGE_KEY);
+    return resolveBrowserLocale();
+  }
+
+  await chrome.storage.local.remove(LOCALE_STORAGE_KEY);
+  return resolveBrowserLocale();
+}
+
 async function loadStoredLocale(): Promise<LocaleCode | undefined> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     return normalizeLocaleCode(localStorage.getItem(LOCALE_STORAGE_KEY) ?? undefined);

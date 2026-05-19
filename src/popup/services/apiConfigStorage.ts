@@ -84,6 +84,22 @@ export async function saveApiConfigState(state: ApiConfigState): Promise<void> {
 }
 
 /**
+ * 清空 API 配置集合。
+ *
+ * @returns 默认 API 配置集合。
+ */
+export async function clearApiConfigState(): Promise<ApiConfigState> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(CONFIG_STATE_STORAGE_KEY);
+    localStorage.removeItem(CONFIG_STORAGE_KEY);
+    return createDefaultApiConfigState();
+  }
+
+  await chrome.storage.local.remove([CONFIG_STATE_STORAGE_KEY, CONFIG_STORAGE_KEY]);
+  return createDefaultApiConfigState();
+}
+
+/**
  * 创建新的 API 配置。
  *
  * @returns API 配置。
@@ -177,6 +193,21 @@ export async function saveApiCheckResults(configId: string, results: ApiCheckRes
       [configId]: results,
     },
   });
+}
+
+/**
+ * 清空 API 检测结果。
+ *
+ * @returns 无返回值。
+ */
+export async function clearApiCheckResults(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(CHECK_RESULT_MAP_STORAGE_KEY);
+    localStorage.removeItem(CHECK_RESULTS_STORAGE_KEY);
+    return;
+  }
+
+  await chrome.storage.local.remove([CHECK_RESULT_MAP_STORAGE_KEY, CHECK_RESULTS_STORAGE_KEY]);
 }
 
 function loadPreviewConfigState(): ApiConfigState {

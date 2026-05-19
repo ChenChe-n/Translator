@@ -48,6 +48,27 @@ export async function saveConfigMapToStorage<
   await chrome.storage.local.set(buildStoragePayload(options, nextConfigMap));
 }
 
+/**
+ * 清空按模式拆分存储的配置集合。
+ *
+ * @param options 配置存储选项。
+ * @returns 无返回值。
+ */
+export async function clearConfigMapStorage<
+  TMode extends string,
+  TConfig,
+  TConfigMap extends Record<TMode, TConfig>,
+>(options: ConfigMapStorageOptions<TMode, TConfig, TConfigMap>): Promise<void> {
+  const keys = getStorageKeyList(options);
+
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    keys.forEach((key) => localStorage.removeItem(key));
+    return;
+  }
+
+  await chrome.storage.local.remove(keys);
+}
+
 function loadPreviewConfigMap<TMode extends string, TConfig, TConfigMap extends Record<TMode, TConfig>>(
   options: ConfigMapStorageOptions<TMode, TConfig, TConfigMap>,
 ): TConfigMap {

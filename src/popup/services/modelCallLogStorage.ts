@@ -51,6 +51,20 @@ export async function updateModelCallLog(id: string, input: UpdateModelCallLogIn
   await saveLogs(logs.map((item) => (item.id === id ? normalizeLog({ ...item, ...input, updatedAt: Date.now() }) : item)));
 }
 
+/**
+ * 清空大模型调用记录。
+ *
+ * @returns 无返回值。
+ */
+export async function clearModelCallLogs(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(MODEL_CALL_LOG_KEY);
+    return;
+  }
+
+  await chrome.storage.local.remove(MODEL_CALL_LOG_KEY);
+}
+
 function readPreviewLogs(): ModelCallLog[] | undefined {
   const value = localStorage.getItem(MODEL_CALL_LOG_KEY);
   return value ? (JSON.parse(value) as ModelCallLog[]) : undefined;

@@ -4,7 +4,7 @@ import type {
   TextParseModeKey,
   TextParseModeOptions,
 } from '../types/textParseMode';
-import { loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
+import { clearConfigMapStorage, loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
 
 export const ACTIVE_TEXT_PARSE_MODE_KEY = 'Translator.textParseMode.active';
 export const TEXT_PARSE_MODE_KEYS: TextParseModeKey[] = ['visible', 'full', 'structured'];
@@ -53,6 +53,17 @@ export async function saveTextParseModeConfigMap(configMap: TextParseModeConfigM
 }
 
 /**
+ * 清空文本解析配置。
+ *
+ * @returns 默认文本解析配置集合。
+ */
+export async function clearTextParseModeConfigMap(): Promise<TextParseModeConfigMap> {
+  await clearConfigMapStorage(storageOptions);
+  await clearActiveTextParseMode();
+  return createDefaultTextParseModeConfigMap();
+}
+
+/**
  * 读取当前文本解析模式。
  *
  * @returns 当前文本解析模式。
@@ -83,6 +94,20 @@ export async function saveActiveTextParseMode(mode: TextParseModeKey): Promise<v
   await chrome.storage.local.set({
     [ACTIVE_TEXT_PARSE_MODE_KEY]: nextMode,
   });
+}
+
+/**
+ * 清空当前文本解析模式。
+ *
+ * @returns 无返回值。
+ */
+export async function clearActiveTextParseMode(): Promise<void> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.removeItem(ACTIVE_TEXT_PARSE_MODE_KEY);
+    return;
+  }
+
+  await chrome.storage.local.remove(ACTIVE_TEXT_PARSE_MODE_KEY);
 }
 
 function createModeConfig(

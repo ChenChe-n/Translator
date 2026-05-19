@@ -1,6 +1,7 @@
 import type { ApiConfig } from '../types/api';
 import type { TranslationModeConfig } from '../types/translationMode';
 import { failRequestLog, updateRequestOutput } from './modelCallRecorder';
+import { recordModelUsage } from './modelUsageStorage';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
@@ -24,7 +25,6 @@ interface PendingItem {
 
 const queue: PendingItem[] = [];
 let timer: number | undefined;
-let sequence = 0;
 let currentConfig: TranslationModeConfig | undefined;
 let currentApiConfig: ApiConfig | undefined;
 let currentTargetLanguage = '';
@@ -44,12 +44,9 @@ export async function translateNormalMode(
   input: NormalTranslationInput,
   targetLanguage: string,
 ): Promise<NormalTranslationResult> {
-  const id = createTranslationCacheKey(input.text, sequence);
-  sequence += 1;
-
   if (!(await loadRuntimeSettings()).translationEnabled) {
     return {
-      tid: id,
+      tid: await createTranslationCacheKey(input.text),
       text: null,
     };
   }
@@ -60,7 +57,7 @@ export async function translateNormalMode(
 
   return new Promise((resolve, reject) => {
     queue.push({
-      id,
+      id: '',
       text: input.text,
       resolve,
       reject,
@@ -99,14 +96,18 @@ async function flushQueue(): Promise<void> {
 
   window.clearTimeout(timer);
   timer = undefined;
-  const batch = takeBatch(currentConfig);
+  const activeConfig = currentConfig;
+  const activeApiConfig = currentApiConfig;
+  const batch = takeBatch(activeConfig);
+  await assignBatchIds(batch);
+  const body = buildRequestBody(activeConfig, batch);
   const idSet = new Set(batch.map((item) => item.id));
   const results = new Map<string, string | null>();
 
   let callLog: Awaited<ReturnType<typeof requestChatResponse>>['callLog'] | undefined;
 
   try {
-    const responseInfo = await requestChatResponse(currentApiConfig, buildRequestBody(currentConfig, batch));
+    const responseInfo = await requestChatResponse(activeApiConfig, body);
     callLog = responseInfo.callLog;
     const activeCallLog = responseInfo.callLog;
 
@@ -122,10 +123,12 @@ async function flushQueue(): Promise<void> {
         await updateRequestOutput(activeCallLog, streamOutput);
       });
       await updateRequestOutput(activeCallLog, streamOutput, true);
+      await recordTranslationUsage(activeApiConfig, body, streamOutput);
     } else {
       const responseData = await responseInfo.response.json();
       const content = readChatContent(responseData);
       await updateRequestOutput(activeCallLog, content, true);
+      await recordTranslationUsage(activeApiConfig, body, content, responseData);
       parseChatJsonlResults(responseData, idSet).forEach((text, tid) => results.set(tid, text));
     }
 
@@ -169,18 +172,24 @@ function buildRequestBody(config: TranslationModeConfig, batch: PendingItem[]): 
     max_tokens: config.parameters.maxTokens,
     messages: [
       {
+        role: 'system',
+        content: renderPrompt(config),
+      },
+      {
         role: 'user',
-        content: `${renderPrompt(config)}\n${batch.map((item) => JSON.stringify({ [item.id]: item.text })).join('\n')}`,
+        content: batch.map((item) => JSON.stringify({ [item.id]: item.text })).join('\n'),
       },
     ],
   };
 }
 
 function renderPrompt(config: TranslationModeConfig): string {
-  const preserveText = config.options.preserveFormatting ? '保留原文格式' : '不保留原文格式';
+  const preserveText = config.options.preserveFormatting
+    ? 'Preserve source formatting and placeholders'
+    : 'Output plain translated text';
   return config.prompt
-    .replaceAll('{是否保留原文格式}', preserveText)
-    .replaceAll('{目标语言(默认为界面语言)}', currentTargetLanguage || 'en-us');
+    .replaceAll('{FORMAT_MODE}', preserveText)
+    .replaceAll('{TARGET_LOCALE}', currentTargetLanguage || 'en-us');
 }
 
 async function readJsonlStream(
@@ -237,6 +246,12 @@ function estimateTextTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
 }
 
+async function assignBatchIds(batch: PendingItem[]): Promise<void> {
+  for (const item of batch) {
+    item.id = await createTranslationCacheKey(item.text);
+  }
+}
+
 function readChatContent(data: unknown): string {
   const response = data as {
     choices?: Array<{
@@ -247,4 +262,22 @@ function readChatContent(data: unknown): string {
   };
 
   return response.choices?.[0]?.message?.content ?? '';
+}
+
+async function recordTranslationUsage(
+  config: ApiConfig,
+  requestBody: Record<string, unknown>,
+  content: string,
+  responseData?: unknown,
+): Promise<void> {
+  const usage = readUsage(responseData);
+  await recordModelUsage({
+    model: config.model,
+    inputTokens: usage?.prompt_tokens ?? estimateTextTokens(JSON.stringify(requestBody)),
+    outputTokens: usage?.completion_tokens ?? estimateTextTokens(content),
+  });
+}
+
+function readUsage(data: unknown): { completion_tokens?: number; prompt_tokens?: number } | undefined {
+  return (data as { usage?: { completion_tokens?: number; prompt_tokens?: number } } | undefined)?.usage;
 }

@@ -7,7 +7,7 @@ import {
   type I18nKey,
   type LocaleCode,
 } from '../../i18n';
-import { loadLocale, saveLocale } from '../../i18n/localeStorage';
+import { clearLocale, loadLocale, saveLocale } from '../../i18n/localeStorage';
 
 interface I18nState {
   locale: LocaleCode;
@@ -29,6 +29,7 @@ const ready = loadLocale().then((locale) => {
 export function useI18n(): {
   locale: ComputedRef<LocaleCode>;
   localeOptions: ComputedRef<Array<{ label: string; value: LocaleCode }>>;
+  resetLocale: () => Promise<LocaleCode>;
   setLocale: (locale: LocaleCode) => Promise<void>;
   t: (key: I18nKey, params?: Record<string, string | number>) => string;
   ready: Promise<void>;
@@ -50,6 +51,12 @@ export function useI18n(): {
     await saveLocale(localeCode);
   }
 
+  async function resetLocale(): Promise<LocaleCode> {
+    const localeCode = await clearLocale();
+    state.locale = localeCode;
+    return localeCode;
+  }
+
   function t(key: I18nKey, params?: Record<string, string | number>): string {
     return translate(state.locale, key, params);
   }
@@ -57,6 +64,7 @@ export function useI18n(): {
   return {
     locale,
     localeOptions,
+    resetLocale,
     setLocale,
     t,
     ready,

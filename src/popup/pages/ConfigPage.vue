@@ -1,5 +1,6 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
+    <PageClearButton @clear="handleClearPage" />
     <section class="config-block">
       <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
       <p class="block-description">{{ t('theme.panelDescription') }}</p>
@@ -58,9 +59,10 @@
 </template>
 
 <script setup lang="ts">
-import { ElOption, ElSelect } from 'element-plus';
+import { ElMessage, ElOption, ElSelect } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
+import PageClearButton from '../components/common/PageClearButton.vue';
 import TextParseModeTabs from '../components/config/TextParseModeTabs.vue';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
 import UpdateScopeTabs from '../components/config/UpdateScopeTabs.vue';
@@ -70,17 +72,20 @@ import { useI18n } from '../composables/useI18n';
 import { useThemeScheme } from '../composables/useThemeScheme';
 import { resolveThemeColors } from '../services/themeRuntime';
 import {
+  clearRuntimeSettings,
   createDefaultRuntimeSettings,
   loadRuntimeSettings,
   saveRuntimeSettings,
 } from '../services/runtimeSettingsStorage';
 import { createThemeScheme } from '../services/themeSchemeStorage';
 import {
+  clearTranslationModeConfigMap,
   createDefaultTranslationModeConfigMap,
   loadTranslationModeConfigMap,
   saveTranslationModeConfigMap,
 } from '../services/translationModeStorage';
 import {
+  clearTextParseModeConfigMap,
   createDefaultTextParseModeConfigMap,
   loadActiveTextParseMode,
   loadTextParseModeConfigMap,
@@ -92,8 +97,8 @@ import type { TranslationModeConfigMap, TranslationModeKey } from '../types/tran
 import type { ThemeColors } from '../types/theme';
 import type { RuntimeSettings, SettingsUpdateScope } from '../types/runtimeSettings';
 
-const { state: themeState, save } = useThemeScheme();
-const { locale, localeOptions, setLocale, t } = useI18n();
+const { reset: resetTheme, state: themeState, save } = useThemeScheme();
+const { locale, localeOptions, resetLocale, setLocale, t } = useI18n();
 const schemeExpanded = ref(false);
 const translationModeExpanded = ref(false);
 const textParseModeExpanded = ref(false);
@@ -165,6 +170,26 @@ async function handleColorUpdate(colors: ThemeColors): Promise<void> {
 
 async function handleLocaleChange(value: LocaleCode): Promise<void> {
   await setLocale(value);
+}
+
+async function handleClearPage(): Promise<void> {
+  const [, , translationConfig, textParseConfig, settings] = await Promise.all([
+    resetTheme(),
+    resetLocale(),
+    clearTranslationModeConfigMap(),
+    clearTextParseModeConfigMap(),
+    clearRuntimeSettings(),
+  ]);
+
+  Object.assign(translationModeConfigMap, translationConfig);
+  Object.assign(textParseModeConfigMap, textParseConfig);
+  Object.assign(runtimeSettings, settings);
+  activeTranslationMode.value = 'normal';
+  activeTextParseMode.value = 'visible';
+  schemeExpanded.value = false;
+  translationModeExpanded.value = false;
+  textParseModeExpanded.value = false;
+  ElMessage.success(t('common.cleared'));
 }
 
 function handleSelectTranslationMode(mode: TranslationModeKey): void {
