@@ -1,8 +1,9 @@
-import type { ApiCheckResult, ApiConfig, ApiConfigState } from '../types/api';
+import type { ApiCheckResult, ApiCheckResultMap, ApiConfig, ApiConfigState } from '../types/api';
 
 const CONFIG_STORAGE_KEY = 'Translator.apiConfig';
 const CONFIG_STATE_STORAGE_KEY = 'Translator.apiConfigState';
 const CHECK_RESULTS_STORAGE_KEY = 'Translator.apiCheckResults';
+const CHECK_RESULT_MAP_STORAGE_KEY = 'Translator.apiCheckResultMap';
 
 const defaultConfig: ApiConfig = {
   id: 'default',
@@ -145,13 +146,15 @@ function normalizeConfig(config: Partial<ApiConfig>): ApiConfig {
  *
  * @returns API 测试结果列表。
  */
-export async function loadApiCheckResults(): Promise<ApiCheckResult[]> {
+export async function loadApiCheckResults(configId: string): Promise<ApiCheckResult[]> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    return loadPreviewCheckResults();
+    return loadPreviewCheckResults(configId);
   }
 
-  const stored = await chrome.storage.local.get(CHECK_RESULTS_STORAGE_KEY);
-  return (stored[CHECK_RESULTS_STORAGE_KEY] as ApiCheckResult[] | undefined) ?? [];
+  const stored = await chrome.storage.local.get([CHECK_RESULT_MAP_STORAGE_KEY, CHECK_RESULTS_STORAGE_KEY]);
+  const resultMap = stored[CHECK_RESULT_MAP_STORAGE_KEY] as ApiCheckResultMap | undefined;
+  const legacyResults = (stored[CHECK_RESULTS_STORAGE_KEY] as ApiCheckResult[] | undefined) ?? [];
+  return resultMap?.[configId] ?? legacyResults;
 }
 
 /**
@@ -160,14 +163,19 @@ export async function loadApiCheckResults(): Promise<ApiCheckResult[]> {
  * @param results API 测试结果列表。
  * @returns 无返回值。
  */
-export async function saveApiCheckResults(results: ApiCheckResult[]): Promise<void> {
+export async function saveApiCheckResults(configId: string, results: ApiCheckResult[]): Promise<void> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    savePreviewCheckResults(results);
+    savePreviewCheckResults(configId, results);
     return;
   }
 
+  const stored = await chrome.storage.local.get(CHECK_RESULT_MAP_STORAGE_KEY);
+  const resultMap = (stored[CHECK_RESULT_MAP_STORAGE_KEY] as ApiCheckResultMap | undefined) ?? {};
   await chrome.storage.local.set({
-    [CHECK_RESULTS_STORAGE_KEY]: results,
+    [CHECK_RESULT_MAP_STORAGE_KEY]: {
+      ...resultMap,
+      [configId]: results,
+    },
   });
 }
 
@@ -180,11 +188,22 @@ function savePreviewConfigState(state: ApiConfigState): void {
   localStorage.setItem(CONFIG_STATE_STORAGE_KEY, JSON.stringify(normalizeState(state)));
 }
 
-function loadPreviewCheckResults(): ApiCheckResult[] {
-  const value = localStorage.getItem(CHECK_RESULTS_STORAGE_KEY);
-  return value ? (JSON.parse(value) as ApiCheckResult[]) : [];
+function loadPreviewCheckResults(configId: string): ApiCheckResult[] {
+  const value = localStorage.getItem(CHECK_RESULT_MAP_STORAGE_KEY);
+  const resultMap = value ? (JSON.parse(value) as ApiCheckResultMap) : {};
+  const legacyValue = localStorage.getItem(CHECK_RESULTS_STORAGE_KEY);
+  const legacyResults = legacyValue ? (JSON.parse(legacyValue) as ApiCheckResult[]) : [];
+  return resultMap[configId] ?? legacyResults;
 }
 
-function savePreviewCheckResults(results: ApiCheckResult[]): void {
-  localStorage.setItem(CHECK_RESULTS_STORAGE_KEY, JSON.stringify(results));
+function savePreviewCheckResults(configId: string, results: ApiCheckResult[]): void {
+  const value = localStorage.getItem(CHECK_RESULT_MAP_STORAGE_KEY);
+  const resultMap = value ? (JSON.parse(value) as ApiCheckResultMap) : {};
+  localStorage.setItem(
+    CHECK_RESULT_MAP_STORAGE_KEY,
+    JSON.stringify({
+      ...resultMap,
+      [configId]: results,
+    }),
+  );
 }

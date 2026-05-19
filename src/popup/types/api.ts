@@ -31,6 +31,11 @@ export interface ApiCheckResult {
 }
 
 /**
+ * 按配置保存的 API 测试结果。
+ */
+export type ApiCheckResultMap = Record<string, ApiCheckResult[]>;
+
+/**
  * 模型每日 token 使用量。
  */
 export interface ModelDailyUsage {

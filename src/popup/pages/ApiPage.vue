@@ -67,9 +67,8 @@ const config = computed<ApiConfig>({
 });
 
 onMounted(async () => {
-  const [storedConfigState, storedResults, storedUsage, storedSettings] = await Promise.all([
+  const [storedConfigState, storedUsage, storedSettings] = await Promise.all([
     loadApiConfigState(),
-    loadApiCheckResults(),
     loadModelDailyUsage(),
     loadUsageStatsSettings(),
   ]);
@@ -77,9 +76,7 @@ onMounted(async () => {
   modelUsage.value = storedUsage;
   usageSettings.value = storedSettings;
 
-  if (storedResults.length > 0) {
-    checkResults.value = mergeResults(storedResults);
-  }
+  await refreshCheckResults();
 });
 
 async function handleSaveConfig(): Promise<void> {
@@ -97,7 +94,7 @@ async function handleRunChecks(): Promise<void> {
 
     for await (const result of runApiHealthChecks(config.value)) {
       updateCheckResult(result);
-      await saveApiCheckResults(checkResults.value);
+      await saveApiCheckResults(configState.activeConfigId, checkResults.value);
       await refreshModelUsage();
     }
   } catch (error) {
@@ -123,9 +120,15 @@ async function handleRemoveConfig(id: string): Promise<void> {
 
   configState.configs = configState.configs.filter((item) => item.id !== id);
 
-  if (configState.activeConfigId === id) {
+  const removingActiveConfig = configState.activeConfigId === id;
+
+  if (removingActiveConfig) {
     configState.activeConfigId = configState.configs[0].id;
     configExpanded.value = false;
+  }
+
+  if (removingActiveConfig) {
+    await refreshCheckResults();
   }
 
   await saveConfigState();
@@ -139,6 +142,7 @@ async function handleSelectConfig(id: string): Promise<void> {
 
   configState.activeConfigId = id;
   configExpanded.value = true;
+  await refreshCheckResults();
   await saveConfigState();
 }
 
@@ -186,6 +190,11 @@ function updateCheckResult(result: ApiCheckResult): void {
 
 async function refreshModelUsage(): Promise<void> {
   modelUsage.value = await loadModelDailyUsage();
+}
+
+async function refreshCheckResults(): Promise<void> {
+  const storedResults = await loadApiCheckResults(configState.activeConfigId);
+  checkResults.value = storedResults.length > 0 ? mergeResults(storedResults) : createDefaultApiCheckResults();
 }
 
 function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
