@@ -8,6 +8,36 @@ body,
 
 * {
   box-sizing: border-box;
+  scrollbar-color: color-mix(in srgb, var(--translator-key-button) 72%, transparent)
+    color-mix(in srgb, var(--translator-container) 82%, var(--translator-border));
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+*::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--translator-container) 82%, var(--translator-border));
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 2px solid color-mix(in srgb, var(--translator-container) 82%, var(--translator-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--translator-key-button) 72%, transparent);
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--translator-key-button);
+}
+
+*::-webkit-scrollbar-corner,
+*::-webkit-scrollbar-button {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 body {
