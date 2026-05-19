@@ -18,6 +18,7 @@ import ApiPage from './pages/ApiPage.vue';
 import ConfigPage from './pages/ConfigPage.vue';
 import MonitorPage from './pages/MonitorPage.vue';
 import { useCurrentPagePort } from './composables/useCurrentPagePort';
+import { useThemeScheme } from './composables/useThemeScheme';
 
 type PopupTabKey = 'monitor' | 'config' | 'api';
 
@@ -46,6 +47,7 @@ const activeTab = ref<PopupTabKey>('monitor');
 const activePanel = computed(() => pageComponents[activeTab.value]);
 
 useCurrentPagePort();
+useThemeScheme();
 </script>
 
 <style scoped>
@@ -56,7 +58,7 @@ useCurrentPagePort();
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto 1fr;
-  background: #f8fafc;
+  background: var(--translator-bg, #f8fafc);
 }
 
 .tab-nav {
@@ -70,7 +72,7 @@ useCurrentPagePort();
 .tab-selector {
   width: 100%;
   --el-segmented-bg-color: #eef2f7;
-  --el-segmented-item-selected-bg-color: #1f2937;
+  --el-segmented-item-selected-bg-color: var(--translator-primary, #1f2937);
   --el-segmented-item-selected-color: #ffffff;
   --el-border-radius-base: 7px;
 }
