@@ -8,32 +8,16 @@ export interface ApiConfig {
 }
 
 /**
- * 文本测试输入。
+ * 单项 API 测试状态。
  */
-export interface TextTestInput {
-  prompt: string;
+export interface ApiCheckResult {
+  key: ApiCheckKey;
+  label: string;
+  passed: boolean;
+  message: string;
 }
 
 /**
- * 图片测试输入。
+ * API 测试项标识。
  */
-export interface ImageTestInput {
-  prompt: string;
-  imageUrl: string;
-  imageName: string;
-}
-
-/**
- * 流式测试输入。
- */
-export interface StreamTestInput {
-  prompt: string;
-}
-
-/**
- * API 测试结果。
- */
-export interface ApiTestResult {
-  ok: boolean;
-  content: string;
-}
+export type ApiCheckKey = 'basicText' | 'jsonOutput' | 'imageUnderstanding' | 'streamOutput';

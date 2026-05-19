@@ -1,4 +1,4 @@
-import type { ApiConfig, ApiTestResult, ImageTestInput, StreamTestInput, TextTestInput } from '../types/api';
+import type { ApiConfig } from '../types/api';
 
 interface ChatResponse {
   choices?: Array<{
@@ -13,33 +13,57 @@ const JSON_HEADERS = {
 };
 
 /**
- * 测试文本请求。
+ * 请求普通文本输出。
  *
  * @param config API 配置。
- * @param input 文本测试输入。
- * @returns 测试结果。
+ * @param prompt 提示词。
+ * @returns 模型输出文本。
  */
-export async function testText(config: ApiConfig, input: TextTestInput): Promise<ApiTestResult> {
+export async function requestText(config: ApiConfig, prompt: string): Promise<string> {
   const response = await requestChat(config, {
     messages: [
       {
         role: 'user',
-        content: input.prompt,
+        content: prompt,
       },
     ],
   });
 
-  return readChatResponse(response);
+  return readChatContent(response);
 }
 
 /**
- * 测试图片请求。
+ * 请求 JSON 结构化输出。
  *
  * @param config API 配置。
- * @param input 图片测试输入。
- * @returns 测试结果。
+ * @param prompt 提示词。
+ * @returns 模型输出文本。
  */
-export async function testImage(config: ApiConfig, input: ImageTestInput): Promise<ApiTestResult> {
+export async function requestJson(config: ApiConfig, prompt: string): Promise<string> {
+  const response = await requestChat(config, {
+    response_format: {
+      type: 'json_object',
+    },
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+  });
+
+  return readChatContent(response);
+}
+
+/**
+ * 请求图片理解输出。
+ *
+ * @param config API 配置。
+ * @param prompt 提示词。
+ * @param imageUrl 图片地址。
+ * @returns 模型输出文本。
+ */
+export async function requestImage(config: ApiConfig, prompt: string, imageUrl: string): Promise<string> {
   const response = await requestChat(config, {
     messages: [
       {
@@ -47,12 +71,12 @@ export async function testImage(config: ApiConfig, input: ImageTestInput): Promi
         content: [
           {
             type: 'text',
-            text: input.prompt,
+            text: prompt,
           },
           {
             type: 'image_url',
             image_url: {
-              url: input.imageUrl,
+              url: imageUrl,
             },
           },
         ],
@@ -60,33 +84,28 @@ export async function testImage(config: ApiConfig, input: ImageTestInput): Promi
     ],
   });
 
-  return readChatResponse(response);
+  return readChatContent(response);
 }
 
 /**
- * 测试流式请求。
+ * 请求流式输出。
  *
  * @param config API 配置。
- * @param input 流式测试输入。
- * @param onDelta 增量内容回调。
- * @returns 测试结果。
+ * @param prompt 提示词。
+ * @returns 完整流式输出文本。
  */
-export async function testStream(
-  config: ApiConfig,
-  input: StreamTestInput,
-  onDelta: (delta: string) => void,
-): Promise<ApiTestResult> {
+export async function requestStream(config: ApiConfig, prompt: string): Promise<string> {
   const response = await requestChat(config, {
     stream: true,
     messages: [
       {
         role: 'user',
-        content: input.prompt,
+        content: prompt,
       },
     ],
   });
 
-  return readStreamResponse(response, onDelta);
+  return readStreamContent(response);
 }
 
 async function requestChat(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
@@ -109,28 +128,19 @@ async function requestChat(config: ApiConfig, body: Record<string, unknown>): Pr
   return response;
 }
 
-async function readChatResponse(response: Response): Promise<ApiTestResult> {
+async function readChatContent(response: Response): Promise<string> {
   const data = (await response.json()) as ChatResponse;
-  return {
-    ok: true,
-    content: data.choices?.[0]?.message?.content ?? '',
-  };
+  return data.choices?.[0]?.message?.content ?? '';
 }
 
-async function readStreamResponse(
-  response: Response,
-  onDelta: (delta: string) => void,
-): Promise<ApiTestResult> {
+async function readStreamContent(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   let content = '';
   let buffer = '';
 
   if (!reader) {
-    return {
-      ok: false,
-      content: '当前环境不支持读取流式响应。',
-    };
+    throw new Error('当前环境不支持读取流式响应。');
   }
 
   while (true) {
@@ -141,25 +151,17 @@ async function readStreamResponse(
     }
 
     buffer += decoder.decode(value, { stream: true });
-    const parsed = parseStreamBuffer(buffer, onDelta);
+    const parsed = parseStreamBuffer(buffer);
     buffer = parsed.rest;
     content += parsed.content;
   }
 
   buffer += decoder.decode();
-  const parsedRest = parseStreamBuffer(`${buffer}\n`, onDelta);
-  content += parsedRest.content;
-
-  return {
-    ok: true,
-    content,
-  };
+  content += parseStreamBuffer(`${buffer}\n`).content;
+  return content;
 }
 
-function parseStreamBuffer(
-  buffer: string,
-  onDelta: (delta: string) => void,
-): {
+function parseStreamBuffer(buffer: string): {
   content: string;
   rest: string;
 } {
@@ -178,9 +180,7 @@ function parseStreamBuffer(
       continue;
     }
 
-    const delta = readStreamDelta(payload);
-    content += delta;
-    onDelta(delta);
+    content += readStreamDelta(payload);
   }
 
   return {

@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build } from 'esbuild';
 import type { Plugin } from 'vite';
@@ -19,6 +19,10 @@ export function buildExtensionAssets(): Plugin {
       await mkdir(assetsDir, { recursive: true });
       await buildScript('src/background/index.ts', 'background.js');
       await buildScript('src/content/index.ts', 'content.js');
+      await copyFile(
+        resolve(process.cwd(), 'src', 'popup', 'assets', 'test.png'),
+        resolve(assetsDir, 'test.png'),
+      );
       await writeFile(
         resolve(distDir, 'manifest.json'),
         `${JSON.stringify(manifest, null, 2)}\n`,

@@ -9,17 +9,12 @@
     <ElFormItem label="模型名称">
       <ElInput v-model="model.model" placeholder="gpt-4.1-mini" clearable />
     </ElFormItem>
-    <ElButton type="primary" class="save-button" @click="$emit('save')">保存配置</ElButton>
   </ElForm>
 </template>
 
 <script setup lang="ts">
-import { ElButton, ElForm, ElFormItem, ElInput } from 'element-plus';
+import { ElForm, ElFormItem, ElInput } from 'element-plus';
 import type { ApiConfig } from '../../types/api';
-
-defineEmits<{
-  save: [];
-}>();
 
 const model = defineModel<ApiConfig>({ required: true });
 </script>
@@ -34,7 +29,4 @@ const model = defineModel<ApiConfig>({ required: true });
   margin-bottom: 10px;
 }
 
-.save-button {
-  width: 100%;
-}
 </style>
