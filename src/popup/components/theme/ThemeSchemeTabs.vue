@@ -1,22 +1,33 @@
 <template>
-  <div ref="scrollerRef" class="scheme-tabs" @pointerdown="handlePointerDown">
+  <div class="scheme-tabs-row">
+    <div ref="scrollerRef" class="scheme-tabs" @pointerdown="handlePointerDown">
+      <button
+        v-for="scheme in schemes"
+        :key="scheme.id"
+        class="scheme-tab"
+        :class="{ active: scheme.id === activeSchemeId }"
+        type="button"
+        @click="handleSelect(scheme.id)"
+      >
+        <span class="tab-name">{{ getSchemeName(scheme) }}</span>
+        <span v-if="scheme.kind === 'custom'" class="tab-close" @click.stop="$emit('remove', scheme.id)">x</span>
+      </button>
+    </div>
     <button
-      v-for="scheme in schemes"
-      :key="scheme.id"
-      class="scheme-tab"
-      :class="{ active: scheme.id === activeSchemeId }"
+      class="create-button"
       type="button"
-      @click="handleSelect(scheme.id)"
+      :aria-label="t('theme.addScheme')"
+      :title="t('theme.addScheme')"
+      @click="$emit('create')"
     >
-      <span class="tab-name">{{ scheme.name }}</span>
-      <span v-if="scheme.kind === 'custom'" class="tab-close" @click.stop="$emit('remove', scheme.id)">x</span>
+      +
     </button>
-    <button class="scheme-tab new-tab" type="button" @click="$emit('create')">new</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import type { ThemeScheme } from '../../types/theme';
 
 defineProps<{
@@ -31,6 +42,13 @@ const emit = defineEmits<{
 }>();
 
 const scrollerRef = ref<HTMLElement>();
+const { t } = useI18n();
+const presetNameKeys = {
+  system: 'theme.scheme.system',
+  day: 'theme.scheme.day',
+  night: 'theme.scheme.night',
+  sakura: 'theme.scheme.sakura',
+} as const;
 let startX = 0;
 let startScrollLeft = 0;
 let dragging = false;
@@ -66,9 +84,24 @@ function handleSelect(id: string): void {
     emit('select', id);
   }
 }
+
+function getSchemeName(scheme: ThemeScheme): string {
+  if (scheme.kind === 'custom') {
+    return scheme.name;
+  }
+
+  return t(presetNameKeys[scheme.id as keyof typeof presetNameKeys] ?? 'theme.scheme.defaultCustom');
+}
 </script>
 
 <style scoped>
+.scheme-tabs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+}
+
 .scheme-tabs {
   display: flex;
   gap: 8px;
@@ -119,8 +152,18 @@ function handleSelect(id: string): void {
   opacity: 0.72;
 }
 
-.new-tab {
-  border-style: dashed;
+.create-button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px dashed var(--translator-border);
+  border-radius: 8px;
+  background: var(--translator-button);
   color: var(--translator-marker);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }
 </style>

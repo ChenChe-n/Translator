@@ -1,22 +1,33 @@
 <template>
-  <div ref="scrollerRef" class="config-tabs" @pointerdown="handlePointerDown">
+  <div class="config-tabs-row">
+    <div ref="scrollerRef" class="config-tabs" @pointerdown="handlePointerDown">
+      <button
+        v-for="(item, index) in configs"
+        :key="item.id"
+        class="config-tab"
+        :class="{ active: item.id === activeConfigId }"
+        type="button"
+        @click="handleSelect(item.id)"
+      >
+        <span class="tab-name">{{ getConfigName(item, index) }}</span>
+        <span class="tab-close" @click.stop="$emit('remove', item.id)">x</span>
+      </button>
+    </div>
     <button
-      v-for="(item, index) in configs"
-      :key="item.id"
-      class="config-tab"
-      :class="{ active: item.id === activeConfigId }"
+      class="create-button"
       type="button"
-      @click="handleSelect(item.id)"
+      :aria-label="t('api.addConfig')"
+      :title="t('api.addConfig')"
+      @click="$emit('create')"
     >
-      <span class="tab-name">{{ getConfigName(item, index) }}</span>
-      <span class="tab-close" @click.stop="$emit('remove', item.id)">x</span>
+      +
     </button>
-    <button class="config-tab new-tab" type="button" @click="$emit('create')">new</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import type { ApiConfig } from '../../types/api';
 
 defineProps<{
@@ -31,6 +42,7 @@ const emit = defineEmits<{
 }>();
 
 const scrollerRef = ref<HTMLElement>();
+const { t } = useI18n();
 let startX = 0;
 let startScrollLeft = 0;
 let dragging = false;
@@ -75,11 +87,18 @@ function handleSelect(id: string): void {
 
 function getConfigName(config: ApiConfig, index: number): string {
   const name = config.name === '未命名' ? '' : config.name;
-  return name || config.model || `配置${index + 1}`;
+  return name || config.model || t('api.configFallback', { index: index + 1 });
 }
 </script>
 
 <style scoped>
+.config-tabs-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  gap: 8px;
+  align-items: center;
+}
+
 .config-tabs {
   display: flex;
   gap: 8px;
@@ -130,8 +149,18 @@ function getConfigName(config: ApiConfig, index: number): string {
   opacity: 0.72;
 }
 
-.new-tab {
-  border-style: dashed;
+.create-button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px dashed var(--translator-border);
+  border-radius: 8px;
+  background: var(--translator-button);
   color: var(--translator-marker);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
 }
 </style>

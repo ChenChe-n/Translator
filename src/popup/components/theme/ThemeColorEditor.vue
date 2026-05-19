@@ -2,7 +2,7 @@
   <section class="color-editor">
     <label v-for="item in colorItems" :key="item.key" class="color-item">
       <span class="color-box" :style="{ background: item.value }"></span>
-      <span class="color-label">{{ item.label }}</span>
+      <span class="color-label">{{ t(item.labelKey) }}</span>
       <input
         class="color-input"
         type="color"
@@ -16,6 +16,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import type { ThemeColors } from '../../types/theme';
 
 const props = defineProps<{
@@ -27,50 +28,52 @@ const emit = defineEmits<{
   update: [colors: ThemeColors];
 }>();
 
+const { t } = useI18n();
+
 const colorItems = computed(() => [
   {
     key: 'background' as const,
-    label: '背景色',
+    labelKey: 'theme.colors.background' as const,
     value: props.colors.background,
   },
   {
     key: 'container' as const,
-    label: '容器色',
+    labelKey: 'theme.colors.container' as const,
     value: props.colors.container,
   },
   {
     key: 'shadow' as const,
-    label: '阴影色',
+    labelKey: 'theme.colors.shadow' as const,
     value: props.colors.shadow,
   },
   {
     key: 'text' as const,
-    label: '正文色',
+    labelKey: 'theme.colors.text' as const,
     value: props.colors.text,
   },
   {
     key: 'muted' as const,
-    label: '备注色',
+    labelKey: 'theme.colors.muted' as const,
     value: props.colors.muted,
   },
   {
     key: 'marker' as const,
-    label: '标记色',
+    labelKey: 'theme.colors.marker' as const,
     value: props.colors.marker,
   },
   {
     key: 'button' as const,
-    label: '普通按钮色',
+    labelKey: 'theme.colors.button' as const,
     value: props.colors.button,
   },
   {
     key: 'keyButton' as const,
-    label: '关键按钮色',
+    labelKey: 'theme.colors.keyButton' as const,
     value: props.colors.keyButton,
   },
   {
     key: 'border' as const,
-    label: '描边色',
+    labelKey: 'theme.colors.border' as const,
     value: props.colors.border,
   },
 ]);

@@ -84,10 +84,10 @@ export function createDefaultThemeSchemeState(): ThemeSchemeState {
  * @param index 方案序号。
  * @returns 自定义配色方案。
  */
-export function createThemeScheme(index: number): ThemeScheme {
+export function createThemeScheme(index: number, name = `Scheme ${index}`): ThemeScheme {
   return {
     id: `scheme-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    name: `方案${index}`,
+    name,
     kind: 'custom',
     colors: dayColors,
   };
@@ -148,7 +148,7 @@ function normalizeCustomScheme(scheme: ThemeScheme): ThemeScheme {
   return {
     ...scheme,
     kind: 'custom',
-    name: scheme.name || '方案',
+    name: scheme.name || 'Scheme',
     colors: normalizeColors(scheme.colors),
   };
 }

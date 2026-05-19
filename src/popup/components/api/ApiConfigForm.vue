@@ -1,15 +1,15 @@
 <template>
   <ElForm label-position="top" class="config-form">
-    <ElFormItem label="name">
-      <ElInput v-model="model.name" placeholder="默认使用模型名" clearable />
+    <ElFormItem :label="t('api.form.name')">
+      <ElInput v-model="model.name" :placeholder="t('api.form.namePlaceholder')" clearable />
     </ElFormItem>
-    <ElFormItem label="URL">
+    <ElFormItem :label="t('api.form.url')">
       <ElInput v-model="model.baseUrl" placeholder="https://api.openai.com/v1" clearable />
     </ElFormItem>
-    <ElFormItem label="Key">
+    <ElFormItem :label="t('api.form.key')">
       <ElInput v-model="model.apiKey" type="password" placeholder="sk-..." show-password clearable />
     </ElFormItem>
-    <ElFormItem label="模型名称">
+    <ElFormItem :label="t('api.form.model')">
       <ElInput v-model="model.model" placeholder="gpt-4.1-mini" clearable />
     </ElFormItem>
   </ElForm>
@@ -17,9 +17,11 @@
 
 <script setup lang="ts">
 import { ElForm, ElFormItem, ElInput } from 'element-plus';
+import { useI18n } from '../../composables/useI18n';
 import type { ApiConfig } from '../../types/api';
 
 const model = defineModel<ApiConfig>({ required: true });
+const { t } = useI18n();
 </script>
 
 <style scoped>

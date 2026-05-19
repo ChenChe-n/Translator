@@ -1,4 +1,5 @@
 import type { ApiCheckKey, ApiCheckResult, ApiConfig } from '../types/api';
+import type { I18nKey } from '../../i18n';
 import { requestImage, requestJson, requestStream, requestText } from './openAiCompatibleClient';
 
 interface ApiCheckTaskResult {
@@ -10,7 +11,7 @@ type ApiCheckTask = (config: ApiConfig) => Promise<ApiCheckTaskResult>;
 
 interface ApiCheckDefinition {
   key: ApiCheckKey;
-  label: string;
+  labelKey: I18nKey;
   task: ApiCheckTask;
 }
 
@@ -21,27 +22,27 @@ const TOKEN_TARGET = 100;
 const checkDefinitions: ApiCheckDefinition[] = [
   {
     key: 'basicText',
-    label: '基本文本输入输出',
+    labelKey: 'api.checks.basicText',
     task: testBasicText,
   },
   {
     key: 'jsonOutput',
-    label: 'json结构化输出',
+    labelKey: 'api.checks.jsonOutput',
     task: testJsonOutput,
   },
   {
     key: 'imageUnderstanding',
-    label: '图片理解',
+    labelKey: 'api.checks.imageUnderstanding',
     task: testImageUnderstanding,
   },
   {
     key: 'streamOutput',
-    label: '流式输出',
+    labelKey: 'api.checks.streamOutput',
     task: testStreamOutput,
   },
   {
     key: 'tokenThroughput',
-    label: 'token/s',
+    labelKey: 'api.checks.tokenThroughput',
     task: testTokenThroughput,
   },
 ];
@@ -54,10 +55,10 @@ const checkDefinitions: ApiCheckDefinition[] = [
 export function createDefaultApiCheckResults(): ApiCheckResult[] {
   return checkDefinitions.map((definition) => ({
     key: definition.key,
-    label: definition.label,
+    label: definition.labelKey,
     status: 'pending',
     passed: false,
-    message: '未测试',
+    message: 'api.checks.pending',
   }));
 }
 
@@ -133,10 +134,10 @@ async function runCheck(config: ApiConfig, definition: ApiCheckDefinition): Prom
   } catch (error) {
     return {
       key: definition.key,
-      label: definition.label,
+      label: definition.labelKey,
       status: 'finished',
       passed: false,
-      message: error instanceof Error ? error.message : '测试失败',
+      message: error instanceof Error ? error.message : 'api.messages.testFailed',
       durationMs: Math.round(performance.now() - startedAt),
     };
   }
@@ -145,10 +146,10 @@ async function runCheck(config: ApiConfig, definition: ApiCheckDefinition): Prom
 function buildRunningResult(definition: ApiCheckDefinition): ApiCheckResult {
   return {
     key: definition.key,
-    label: definition.label,
+    label: definition.labelKey,
     status: 'running',
     passed: false,
-    message: '测试中',
+    message: 'api.checks.running',
   };
 }
 
@@ -159,10 +160,10 @@ function buildFinishedResult(
 ): ApiCheckResult {
   return {
     key: definition.key,
-    label: definition.label,
+    label: definition.labelKey,
     status: 'finished',
     passed: result.passed,
-    message: result.passed ? '通过' : '未通过',
+    message: result.passed ? 'api.checks.passed' : 'api.checks.failed',
     durationMs,
     tokenPerSecond:
       definition.key === 'tokenThroughput' ? calculateTokenPerSecond(result.outputTokens ?? 0, durationMs) : undefined,
@@ -171,7 +172,7 @@ function buildFinishedResult(
 
 async function loadTestImageDataUrl(): Promise<string> {
   if (typeof chrome === 'undefined' || !chrome.runtime?.getURL) {
-    throw new Error('请在插件环境中运行图片测试。');
+    throw new Error('api.errors.imageEnv');
   }
 
   const response = await fetch(chrome.runtime.getURL('assets/test.png'));
@@ -183,7 +184,7 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.addEventListener('load', () => resolve(String(reader.result ?? '')));
-    reader.addEventListener('error', () => reject(new Error('读取测试图片失败。')));
+    reader.addEventListener('error', () => reject(new Error('api.errors.imageRead')));
     reader.readAsDataURL(blob);
   });
 }

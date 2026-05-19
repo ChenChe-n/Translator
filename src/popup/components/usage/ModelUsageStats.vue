@@ -1,9 +1,9 @@
 <template>
   <section class="stats-panel">
     <div class="stats-head">
-      <h2 class="panel-title">模型token使用统计</h2>
+      <h2 class="panel-title">{{ t('usage.title') }}</h2>
       <div class="retention-control">
-        <span>保留</span>
+        <span>{{ t('usage.retentionBefore') }}</span>
         <ElInputNumber
           :model-value="settings.retentionDays"
           size="small"
@@ -12,7 +12,7 @@
           controls-position="right"
           @change="handleRetentionChange"
         />
-        <span>天</span>
+        <span>{{ t('usage.retentionAfter') }}</span>
       </div>
     </div>
     <section class="chart-row">
@@ -57,6 +57,7 @@
 <script setup lang="ts">
 import { ElInputNumber } from 'element-plus';
 import { computed, ref } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import {
   aggregateDailyUsage,
   aggregateModelRanking,
@@ -78,6 +79,7 @@ const emit = defineEmits<{
   retentionChange: [value: number];
 }>();
 
+const { t } = useI18n();
 const scopedUsage = computed(() => pruneUsage(props.usage, props.settings.retentionDays));
 const colorMap = computed(() => createModelColorMap(scopedUsage.value));
 const dailyUsage = computed(() => aggregateDailyUsage(scopedUsage.value, colorMap.value));

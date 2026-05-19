@@ -1,6 +1,6 @@
 <template>
   <div class="pie-wrap">
-    <svg class="pie" viewBox="0 0 120 120" role="img" aria-label="模型使用率">
+    <svg class="pie" viewBox="0 0 120 120" role="img" :aria-label="t('usage.pieAria')">
       <circle v-if="segments.length === 0" cx="60" cy="60" r="45" fill="var(--translator-button)" />
       <path
         v-for="segment in segments"
@@ -21,6 +21,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import type { ModelUsageRankItem } from '../../services/modelUsageAggregator';
 
 const props = defineProps<{
@@ -35,6 +36,7 @@ defineEmits<{
 }>();
 
 const focusedModel = computed(() => props.activeModel ?? props.selectedModel);
+const { t } = useI18n();
 
 const segments = computed(() => {
   const totalTokens = props.items.reduce((sum, item) => sum + item.tokens, 0);

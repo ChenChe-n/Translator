@@ -157,7 +157,7 @@ async function readStreamContent(response: Response): Promise<string> {
   let buffer = '';
 
   if (!reader) {
-    throw new Error('当前环境不支持读取流式响应。');
+    throw new Error('api.errors.streamUnsupported');
   }
 
   while (true) {

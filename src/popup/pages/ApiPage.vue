@@ -1,5 +1,5 @@
 <template>
-  <section class="page-shell" aria-label="api">
+  <section class="page-shell" :aria-label="t('app.tabs.api')">
     <ApiConfigTabs
       :configs="configState.configs"
       :active-config-id="configState.activeConfigId"
@@ -10,8 +10,10 @@
     <div v-if="configExpanded" class="config-shell">
       <ApiConfigForm v-model="config" />
       <div class="action-row">
-        <ElButton class="action-button" @click="handleSaveConfig">保存</ElButton>
-        <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
+        <ElButton class="action-button" @click="handleSaveConfig">{{ t('api.actions.save') }}</ElButton>
+        <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">
+          {{ t('api.actions.test') }}
+        </ElButton>
       </div>
       <ApiCheckResultList :results="checkResults" />
     </div>
@@ -30,6 +32,7 @@ import ApiConfigForm from '../components/api/ApiConfigForm.vue';
 import ApiConfigTabs from '../components/api/ApiConfigTabs.vue';
 import ApiCheckResultList from '../components/api/ApiCheckResultList.vue';
 import ModelUsageStats from '../components/usage/ModelUsageStats.vue';
+import { useI18n } from '../composables/useI18n';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
 import {
   loadApiCheckResults,
@@ -48,6 +51,7 @@ import {
 import type { ApiCheckResult, ApiConfig, ApiConfigState, ModelDailyUsage, UsageStatsSettings } from '../types/api';
 
 const configState = reactive<ApiConfigState>(createDefaultApiConfigState());
+const { t } = useI18n();
 
 const configExpanded = ref(false);
 const testing = ref(false);
@@ -83,7 +87,7 @@ onMounted(async () => {
 async function handleSaveConfig(): Promise<void> {
   ensureConfig();
   await saveConfigState();
-  ElMessage.success('配置已保存');
+  ElMessage.success(t('api.messages.saved'));
 }
 
 async function handleRunChecks(): Promise<void> {
@@ -101,7 +105,7 @@ async function handleRunChecks(): Promise<void> {
       await refreshModelUsage();
     }
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '测试失败');
+    ElMessage.error(error instanceof Error ? translateErrorMessage(error.message) : t('api.messages.testFailed'));
   } finally {
     testing.value = false;
   }
@@ -117,7 +121,7 @@ async function handleCreateConfig(): Promise<void> {
 
 async function handleRemoveConfig(id: string): Promise<void> {
   if (configState.configs.length <= 1) {
-    ElMessage.warning('至少保留一个配置');
+    ElMessage.warning(t('api.messages.keepOne'));
     return;
   }
 
@@ -160,8 +164,12 @@ async function handleRetentionChange(value: number): Promise<void> {
 
 function ensureConfig(): void {
   if (!config.value.baseUrl || !config.value.apiKey || !config.value.model) {
-    throw new Error('请先填写 URL、Key 和模型。');
+    throw new Error(t('api.messages.required'));
   }
+}
+
+function translateErrorMessage(message: string): string {
+  return message.startsWith('api.') ? t(message as 'api.messages.testFailed') : message;
 }
 
 async function saveConfigState(): Promise<void> {
@@ -236,6 +244,7 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
     return {
       ...item,
       ...stored,
+      label: item.label,
       status: stored.status ?? 'finished',
     };
   });

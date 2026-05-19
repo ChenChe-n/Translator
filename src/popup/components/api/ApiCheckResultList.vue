@@ -1,9 +1,9 @@
 <template>
   <section class="result-panel">
-    <h2 class="panel-title">上一次测试信息:</h2>
+    <h2 class="panel-title">{{ t('api.checks.lastInfo') }}</h2>
     <ul class="check-list">
       <li v-for="item in results" :key="item.key" class="check-item">
-        <span>{{ item.label }}</span>
+        <span>{{ translateResultText(item.label) }}</span>
         <span class="check-value">
           <span v-if="item.durationMs && item.passed" class="duration">{{ formatDuration(item) }}</span>
           <span :class="getStateClass(item)">{{ formatState(item) }}</span>
@@ -14,11 +14,18 @@
 </template>
 
 <script setup lang="ts">
+import { useI18n } from '../../composables/useI18n';
 import type { ApiCheckResult } from '../../types/api';
 
 defineProps<{
   results: ApiCheckResult[];
 }>();
+
+const { t } = useI18n();
+
+function translateResultText(text: string): string {
+  return text.startsWith('api.') ? t(text as 'api.checks.lastInfo') : text;
+}
 
 function formatDuration(item: ApiCheckResult): string {
   if (item.tokenPerSecond !== undefined) {

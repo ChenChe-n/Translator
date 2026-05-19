@@ -1,6 +1,6 @@
 <template>
   <ol class="ranking-list">
-    <li v-if="visibleItems.length === 0" class="empty-item">暂无数据</li>
+    <li v-if="visibleItems.length === 0" class="empty-item">{{ t('usage.empty') }}</li>
     <li
       v-for="item in visibleItems"
       :key="item.model"
@@ -24,6 +24,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from '../../composables/useI18n';
 import type { ModelUsageRankItem } from '../../services/modelUsageAggregator';
 
 const props = defineProps<{
@@ -39,6 +40,7 @@ defineEmits<{
 
 const visibleItems = computed(() => props.items.slice(0, 8));
 const focusedModel = computed(() => props.activeModel ?? props.selectedModel);
+const { t } = useI18n();
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1000) {

@@ -137,13 +137,19 @@ function createModelColors(baseColor: string): string[] {
 
 function toHexColor(color: string): string {
   const normalized = color.trim();
-  const numbers = normalized.match(/\d+/g)?.map(Number);
+  const hexColor = normalizeHexColor(normalized);
 
-  if (!numbers || numbers.length < 3) {
+  if (hexColor) {
+    return hexColor;
+  }
+
+  const rgbParts = parseRgbColorParts(normalized);
+
+  if (!rgbParts) {
     return normalized;
   }
 
-  const [red, green, blue] = numbers;
+  const [red, green, blue] = rgbParts;
   return `#${toHexPart(red)}${toHexPart(green)}${toHexPart(blue)}`;
 }
 
@@ -152,7 +158,8 @@ function toHexPart(value: number): string {
 }
 
 function extractHue(color: string): number {
-  const numbers = color.match(/\d+/g)?.map(Number);
+  const hexColor = normalizeHexColor(color);
+  const numbers = hexColor ? parseHexColorParts(hexColor) : parseRgbColorParts(color.trim());
 
   if (!numbers || numbers.length < 3) {
     return 210;
@@ -175,4 +182,45 @@ function extractHue(color: string): number {
         : 60 * ((red - green) / diff) + 240;
 
   return Math.round(hue);
+}
+
+function normalizeHexColor(color: string): string | undefined {
+  const shortHex = color.match(/^#([\da-f])([\da-f])([\da-f])$/i);
+
+  if (shortHex) {
+    const [, red, green, blue] = shortHex;
+    return `#${red}${red}${green}${green}${blue}${blue}`.toLowerCase();
+  }
+
+  return /^#[\da-f]{6}$/i.test(color) ? color.toLowerCase() : undefined;
+}
+
+function parseHexColorParts(color: string): [number, number, number] {
+  return [
+    Number.parseInt(color.slice(1, 3), 16),
+    Number.parseInt(color.slice(3, 5), 16),
+    Number.parseInt(color.slice(5, 7), 16),
+  ];
+}
+
+function parseRgbColorParts(color: string): [number, number, number] | undefined {
+  if (!/^rgba?\(/i.test(color)) {
+    return undefined;
+  }
+
+  const parts = color.match(/[\d.]+%?/g)?.slice(0, 3).map(parseCssColorChannel);
+
+  if (!parts || parts.length < 3) {
+    return undefined;
+  }
+
+  return [parts[0], parts[1], parts[2]];
+}
+
+function parseCssColorChannel(value: string): number {
+  if (value.endsWith('%')) {
+    return Math.round((Number(value.slice(0, -1)) / 100) * 255);
+  }
+
+  return Math.round(Number(value));
 }

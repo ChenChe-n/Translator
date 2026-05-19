@@ -1,6 +1,6 @@
 <template>
   <main class="popup-shell">
-    <nav class="tab-nav" aria-label="页面选择">
+    <nav class="tab-nav" :aria-label="t('app.navAria')">
       <ElSegmented v-model="activeTab" class="tab-selector" :options="tabOptions" />
     </nav>
     <section class="page-stage">
@@ -18,24 +18,10 @@ import ApiPage from './pages/ApiPage.vue';
 import ConfigPage from './pages/ConfigPage.vue';
 import MonitorPage from './pages/MonitorPage.vue';
 import { useCurrentPagePort } from './composables/useCurrentPagePort';
+import { useI18n } from './composables/useI18n';
 import { useThemeScheme } from './composables/useThemeScheme';
 
 type PopupTabKey = 'monitor' | 'config' | 'api';
-
-const tabOptions: Array<{ label: string; value: PopupTabKey }> = [
-  {
-    label: '监控',
-    value: 'monitor',
-  },
-  {
-    label: '配置',
-    value: 'config',
-  },
-  {
-    label: 'api',
-    value: 'api',
-  },
-];
 
 const pageComponents: Record<PopupTabKey, Component> = {
   monitor: MonitorPage,
@@ -43,8 +29,23 @@ const pageComponents: Record<PopupTabKey, Component> = {
   api: ApiPage,
 };
 
+const { t } = useI18n();
 const activeTab = ref<PopupTabKey>('monitor');
 const activePanel = computed(() => pageComponents[activeTab.value]);
+const tabOptions = computed<Array<{ label: string; value: PopupTabKey }>>(() => [
+  {
+    label: t('app.tabs.monitor'),
+    value: 'monitor',
+  },
+  {
+    label: t('app.tabs.config'),
+    value: 'config',
+  },
+  {
+    label: t('app.tabs.api'),
+    value: 'api',
+  },
+]);
 
 useCurrentPagePort();
 useThemeScheme();
