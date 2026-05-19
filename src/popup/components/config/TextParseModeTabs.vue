@@ -2,6 +2,9 @@
   <section class="mode-block" :aria-label="t('textParseMode.title')">
     <h2 class="panel-title">{{ t('textParseMode.title') }}</h2>
     <p class="panel-description">{{ t('textParseMode.description') }}</p>
+    <ElCheckbox :model-value="enabled" @change="handleEnabledUpdate">
+      {{ t('runtime.parseEnabled') }}
+    </ElCheckbox>
     <div class="mode-tabs">
       <button
         v-for="option in modeOptions"
@@ -72,11 +75,13 @@ import type { TextParseModeConfigMap, TextParseModeKey } from '../../types/textP
 
 const props = defineProps<{
   configMap: TextParseModeConfigMap;
+  enabled: boolean;
   expanded: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [mode: TextParseModeKey];
+  toggleEnabled: [enabled: boolean];
   update: [configMap: TextParseModeConfigMap];
 }>();
 
@@ -151,6 +156,10 @@ function updateActiveConfig(config: Partial<TextParseModeConfigMap[TextParseMode
       ...config,
     },
   });
+}
+
+function handleEnabledUpdate(value: string | number | boolean): void {
+  emit('toggleEnabled', Boolean(value));
 }
 </script>
 

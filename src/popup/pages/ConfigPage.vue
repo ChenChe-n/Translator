@@ -1,6 +1,5 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
-    <RuntimeSettingsPanel :settings="runtimeSettings" @update="handleRuntimeSettingsUpdate" />
     <section class="config-block">
       <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
       <p class="block-description">{{ t('theme.panelDescription') }}</p>
@@ -23,17 +22,22 @@
     <TranslationModeTabs
       v-model:active-mode="activeTranslationMode"
       :config-map="translationModeConfigMap"
+      :enabled="runtimeSettings.translationEnabled"
       :expanded="translationModeExpanded"
       @select="handleSelectTranslationMode"
+      @toggle-enabled="handleTranslationEnabledUpdate"
       @update="handleTranslationModeUpdate"
     />
     <TextParseModeTabs
       v-model:active-mode="activeTextParseMode"
       :config-map="textParseModeConfigMap"
+      :enabled="runtimeSettings.parseEnabled"
       :expanded="textParseModeExpanded"
       @select="handleSelectTextParseMode"
+      @toggle-enabled="handleParseEnabledUpdate"
       @update="handleTextParseModeUpdate"
     />
+    <UpdateScopeTabs :model-value="runtimeSettings.updateScope" @update:model-value="handleUpdateScopeUpdate" />
     <section class="language-panel" :aria-label="t('language.label')">
       <span class="language-label">{{ t('language.label') }}</span>
       <ElSelect
@@ -57,9 +61,9 @@
 import { ElOption, ElSelect } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
-import RuntimeSettingsPanel from '../components/config/RuntimeSettingsPanel.vue';
 import TextParseModeTabs from '../components/config/TextParseModeTabs.vue';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
+import UpdateScopeTabs from '../components/config/UpdateScopeTabs.vue';
 import ThemeColorEditor from '../components/theme/ThemeColorEditor.vue';
 import ThemeSchemeTabs from '../components/theme/ThemeSchemeTabs.vue';
 import { useI18n } from '../composables/useI18n';
@@ -86,7 +90,7 @@ import {
 import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textParseMode';
 import type { TranslationModeConfigMap, TranslationModeKey } from '../types/translationMode';
 import type { ThemeColors } from '../types/theme';
-import type { RuntimeSettings } from '../types/runtimeSettings';
+import type { RuntimeSettings, SettingsUpdateScope } from '../types/runtimeSettings';
 
 const { state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, setLocale, t } = useI18n();
@@ -197,6 +201,27 @@ async function handleTextParseModeUpdate(configMap: TextParseModeConfigMap): Pro
 async function handleRuntimeSettingsUpdate(settings: RuntimeSettings): Promise<void> {
   Object.assign(runtimeSettings, settings);
   await saveRuntimeSettings(runtimeSettings);
+}
+
+async function handleParseEnabledUpdate(enabled: boolean): Promise<void> {
+  await handleRuntimeSettingsUpdate({
+    ...runtimeSettings,
+    parseEnabled: enabled,
+  });
+}
+
+async function handleTranslationEnabledUpdate(enabled: boolean): Promise<void> {
+  await handleRuntimeSettingsUpdate({
+    ...runtimeSettings,
+    translationEnabled: enabled,
+  });
+}
+
+async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promise<void> {
+  await handleRuntimeSettingsUpdate({
+    ...runtimeSettings,
+    updateScope,
+  });
 }
 </script>
 

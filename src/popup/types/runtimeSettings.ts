@@ -4,9 +4,10 @@
 export type SettingsUpdateScope = 'foreground' | 'all';
 
 /**
- * 运行开关配置。
+ * 运行行为配置。
  */
 export interface RuntimeSettings {
-  enabled: boolean;
+  parseEnabled: boolean;
+  translationEnabled: boolean;
   updateScope: SettingsUpdateScope;
 }

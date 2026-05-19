@@ -9,7 +9,7 @@ const hashSalt = 0x811c9dc5;
  * @returns 缓存键。
  */
 export function createTranslationCacheKey(text: string, index: number): string {
-  return `${toBase64Id(hashText(text), 8)}-${toBase64Id(index, 8)}`;
+  return `${toBase64Id(hashText(text), 8)}-${toBase64Id(index, 4)}`;
 }
 
 function hashText(text: string): number {

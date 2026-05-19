@@ -1,6 +1,7 @@
 import type { ApiConfig } from '../types/api';
 import type { TranslationModeConfig } from '../types/translationMode';
 import { requestChatResponse } from './openAiCompatibleClient';
+import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 import { parseChatJsonlResults, parseJsonlLines, readSseContent } from './translationJsonlParser';
 
@@ -36,24 +37,33 @@ let currentTargetLanguage = '';
  * @param targetLanguage 目标语言。
  * @returns 翻译结果。
  */
-export function translateNormalMode(
+export async function translateNormalMode(
   apiConfig: ApiConfig,
   modeConfig: TranslationModeConfig,
   input: NormalTranslationInput,
   targetLanguage: string,
 ): Promise<NormalTranslationResult> {
+  const id = createTranslationCacheKey(input.text, sequence);
+  sequence += 1;
+
+  if (!(await loadRuntimeSettings()).translationEnabled) {
+    return {
+      tid: id,
+      text: null,
+    };
+  }
+
   currentConfig = modeConfig;
   currentApiConfig = apiConfig;
   currentTargetLanguage = targetLanguage;
 
   return new Promise((resolve, reject) => {
     queue.push({
-      id: createTranslationCacheKey(input.text, sequence),
+      id,
       text: input.text,
       resolve,
       reject,
     });
-    sequence += 1;
     scheduleFlush();
   });
 }

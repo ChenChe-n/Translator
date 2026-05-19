@@ -2,6 +2,9 @@
   <section class="mode-block" :aria-label="t('translationMode.title')">
     <h2 class="panel-title">{{ t('translationMode.title') }}</h2>
     <p class="panel-description">{{ t('translationMode.description') }}</p>
+    <ElCheckbox :model-value="enabled" @change="handleEnabledUpdate">
+      {{ t('runtime.translationEnabled') }}
+    </ElCheckbox>
     <div class="mode-tabs">
       <button
         v-for="option in modeOptions"
@@ -25,6 +28,7 @@
 </template>
 
 <script setup lang="ts">
+import { ElCheckbox } from 'element-plus';
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import type { TranslationModeConfigMap, TranslationModeKey } from '../../types/translationMode';
@@ -32,11 +36,13 @@ import NormalTranslationForm from './NormalTranslationForm.vue';
 
 const props = defineProps<{
   configMap: TranslationModeConfigMap;
+  enabled: boolean;
   expanded: boolean;
 }>();
 
 const emit = defineEmits<{
   select: [mode: TranslationModeKey];
+  toggleEnabled: [enabled: boolean];
   update: [configMap: TranslationModeConfigMap];
 }>();
 
@@ -60,6 +66,10 @@ function updateActiveConfig(config: Partial<TranslationModeConfigMap[Translation
       ...config,
     },
   });
+}
+
+function handleEnabledUpdate(value: string | number | boolean): void {
+  emit('toggleEnabled', Boolean(value));
 }
 </script>
 

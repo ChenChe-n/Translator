@@ -2,6 +2,10 @@ import type { RuntimeSettings, SettingsUpdateScope } from '../types/runtimeSetti
 
 export const RUNTIME_SETTINGS_KEY = 'Translator.runtimeSettings';
 
+type StoredRuntimeSettings = Partial<RuntimeSettings> & {
+  enabled?: boolean;
+};
+
 /**
  * 创建默认运行配置。
  *
@@ -9,7 +13,8 @@ export const RUNTIME_SETTINGS_KEY = 'Translator.runtimeSettings';
  */
 export function createDefaultRuntimeSettings(): RuntimeSettings {
   return {
-    enabled: true,
+    parseEnabled: true,
+    translationEnabled: true,
     updateScope: 'foreground',
   };
 }
@@ -22,11 +27,11 @@ export function createDefaultRuntimeSettings(): RuntimeSettings {
 export async function loadRuntimeSettings(): Promise<RuntimeSettings> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     const value = localStorage.getItem(RUNTIME_SETTINGS_KEY);
-    return normalizeSettings(value ? (JSON.parse(value) as Partial<RuntimeSettings>) : undefined);
+    return normalizeSettings(value ? (JSON.parse(value) as StoredRuntimeSettings) : undefined);
   }
 
   const stored = await chrome.storage.local.get(RUNTIME_SETTINGS_KEY);
-  return normalizeSettings(stored[RUNTIME_SETTINGS_KEY] as Partial<RuntimeSettings> | undefined);
+  return normalizeSettings(stored[RUNTIME_SETTINGS_KEY] as StoredRuntimeSettings | undefined);
 }
 
 /**
@@ -48,11 +53,12 @@ export async function saveRuntimeSettings(settings: RuntimeSettings): Promise<vo
   });
 }
 
-function normalizeSettings(settings: Partial<RuntimeSettings> | undefined): RuntimeSettings {
+function normalizeSettings(settings: StoredRuntimeSettings | undefined): RuntimeSettings {
   const defaultSettings = createDefaultRuntimeSettings();
 
   return {
-    enabled: settings?.enabled ?? defaultSettings.enabled,
+    parseEnabled: settings?.parseEnabled ?? settings?.enabled ?? defaultSettings.parseEnabled,
+    translationEnabled: settings?.translationEnabled ?? settings?.enabled ?? defaultSettings.translationEnabled,
     updateScope: normalizeUpdateScope(settings?.updateScope),
   };
 }
