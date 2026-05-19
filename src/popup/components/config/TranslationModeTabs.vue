@@ -1,6 +1,7 @@
 <template>
   <section class="mode-panel" :aria-label="t('translationMode.title')">
     <h2 class="panel-title">{{ t('translationMode.title') }}</h2>
+    <p class="panel-description">{{ t('translationMode.description') }}</p>
     <ElSegmented v-model="activeMode" class="mode-tabs" :options="modeOptions" />
     <section class="mode-form">
       <ElForm label-position="top">
@@ -154,6 +155,13 @@ function updateActiveConfig(config: Partial<TranslationModeConfigMap[Translation
   font-size: 13px;
   font-weight: 600;
   color: var(--translator-text);
+}
+
+.panel-description {
+  margin: -4px 0 0;
+  color: var(--translator-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .mode-tabs :deep(.el-segmented__group) {

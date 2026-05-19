@@ -1,7 +1,8 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
-    <ElSegmented v-model="activeConfigSection" class="section-tabs" :options="configSectionOptions" />
-    <template v-if="activeConfigSection === 'theme'">
+    <section class="config-block">
+      <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
+      <p class="block-description">{{ t('theme.panelDescription') }}</p>
       <ThemeSchemeTabs
         :schemes="themeState.schemes"
         :active-scheme-id="themeState.activeSchemeId"
@@ -17,9 +18,8 @@
           @update="handleColorUpdate"
         />
       </section>
-    </template>
+    </section>
     <TranslationModeTabs
-      v-else
       v-model:active-mode="activeTranslationMode"
       :config-map="translationModeConfigMap"
       @update="handleTranslationModeUpdate"
@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import { ElOption, ElSegmented, ElSelect } from 'element-plus';
+import { ElOption, ElSelect } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
@@ -62,11 +62,8 @@ import {
 import type { TranslationModeConfigMap, TranslationModeKey } from '../types/translationMode';
 import type { ThemeColors } from '../types/theme';
 
-type ConfigSectionKey = 'theme' | 'translationMode';
-
 const { state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, setLocale, t } = useI18n();
-const activeConfigSection = ref<ConfigSectionKey>('theme');
 const schemeExpanded = ref(false);
 const activeTranslationMode = ref<TranslationModeKey>('normal');
 const translationModeConfigMap = reactive<TranslationModeConfigMap>(createDefaultTranslationModeConfigMap());
@@ -76,16 +73,6 @@ const activeScheme = computed(() =>
 );
 
 const activeColors = computed(() => (activeScheme.value ? resolveThemeColors(activeScheme.value) : themeState.schemes[0].colors));
-const configSectionOptions = computed<Array<{ label: string; value: ConfigSectionKey }>>(() => [
-  {
-    label: t('config.sections.theme'),
-    value: 'theme',
-  },
-  {
-    label: t('config.sections.translationMode'),
-    value: 'translationMode',
-  },
-]);
 
 onMounted(async () => {
   Object.assign(translationModeConfigMap, await loadTranslationModeConfigMap());
@@ -153,27 +140,9 @@ async function handleTranslationModeUpdate(configMap: TranslationModeConfigMap):
   background: var(--translator-background);
 }
 
-.section-tabs {
-  width: 100%;
-  --el-segmented-bg-color: var(--translator-button);
-  --el-segmented-item-selected-bg-color: var(--translator-key-button);
-  --el-segmented-item-selected-color: var(--translator-button);
-  --el-border-radius-base: 7px;
-  color: var(--translator-text);
-}
-
-.section-tabs :deep(.el-segmented__group) {
-  width: 100%;
-}
-
-.section-tabs :deep(.el-segmented__item) {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-}
-
-.section-tabs :deep(.el-segmented__item-label) {
-  line-height: 32px;
+.config-block {
+  display: grid;
+  gap: 8px;
 }
 
 .scheme-shell {
@@ -184,6 +153,20 @@ async function handleTranslationModeUpdate(configMap: TranslationModeConfigMap):
   border-radius: 8px;
   background: var(--translator-container);
   box-shadow: 0 8px 20px var(--translator-shadow);
+}
+
+.block-title {
+  margin: 0;
+  color: var(--translator-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.block-description {
+  margin: -2px 0 0;
+  color: var(--translator-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .language-panel {
