@@ -50,8 +50,8 @@ useCurrentPagePort();
 
 <style scoped>
 .popup-shell {
-  width: 320px;
-  min-height: 240px;
+  width: 380px;
+  height: 560px;
   padding: 12px;
   box-sizing: border-box;
   display: grid;
@@ -90,11 +90,12 @@ useCurrentPagePort();
 }
 
 .page-stage {
-  min-height: 168px;
+  min-height: 0;
   margin-top: 12px;
   border: 1px solid #edf1f5;
   border-radius: 8px;
   background: #ffffff;
+  overflow: auto;
 }
 
 .page-fade-enter-active,

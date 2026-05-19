@@ -9,7 +9,7 @@ const manifest: ManifestV3 = {
     default_title: 'Translator',
     default_popup: 'index.html',
   },
-  permissions: ['activeTab', 'scripting'],
+  permissions: ['activeTab', 'scripting', 'storage'],
   host_permissions: ['<all_urls>'],
   background: {
     service_worker: 'assets/background.js',
