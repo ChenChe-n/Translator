@@ -66,7 +66,7 @@
       <ElCheckbox :model-value="config.options.preserveFormatting" @change="handlePreserveFormattingUpdate">
         {{ t('translationMode.preserveFormatting') }}
       </ElCheckbox>
-      <ElCheckbox :model-value="config.options.enableCache" @change="handleEnableCacheUpdate">
+      <ElCheckbox v-if="showNormalOptions" :model-value="config.options.enableCache" @change="handleEnableCacheUpdate">
         {{ t('translationMode.enableCache') }}
       </ElCheckbox>
     </div>

@@ -84,6 +84,7 @@ import {
   loadTranslationModeConfigMap,
   saveTranslationModeConfigMap,
 } from '../services/translationModeStorage';
+import { clearNormalTranslationCache } from '../services/normalTranslationCacheStorage';
 import {
   clearTextParseModeConfigMap,
   createDefaultTextParseModeConfigMap,
@@ -177,6 +178,7 @@ async function handleClearPage(): Promise<void> {
     resetTheme(),
     resetLocale(),
     clearTranslationModeConfigMap(),
+    clearNormalTranslationCache(),
     clearTextParseModeConfigMap(),
     clearRuntimeSettings(),
   ]);

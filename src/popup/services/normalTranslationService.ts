@@ -2,6 +2,7 @@ import type { ApiConfig } from '../types/api';
 import type { TranslationModeConfig } from '../types/translationMode';
 import { failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
+import { readCachedNormalTranslation, writeCachedNormalTranslation } from './normalTranslationCache';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
@@ -51,6 +52,12 @@ export async function translateNormalMode(
     };
   }
 
+  const cachedResult = await readCachedNormalTranslation(modeConfig, input, targetLanguage);
+
+  if (cachedResult) {
+    return cachedResult;
+  }
+
   currentConfig = modeConfig;
   currentApiConfig = apiConfig;
   currentTargetLanguage = targetLanguage;
@@ -98,9 +105,10 @@ async function flushQueue(): Promise<void> {
   timer = undefined;
   const activeConfig = currentConfig;
   const activeApiConfig = currentApiConfig;
+  const activeTargetLanguage = currentTargetLanguage;
   const batch = takeBatch(activeConfig);
   await assignBatchIds(batch);
-  const body = buildRequestBody(activeConfig, batch);
+  const body = buildRequestBody(activeConfig, batch, activeTargetLanguage);
   const idSet = new Set(batch.map((item) => item.id));
   const results = new Map<string, string | null>();
 
@@ -116,7 +124,7 @@ async function flushQueue(): Promise<void> {
       await readJsonlStream(responseInfo.response, idSet, (tid, text) => {
         if (!results.has(tid)) {
           results.set(tid, text);
-          resolveMatched(batch, tid, text);
+          resolveMatched(batch, activeConfig, tid, text, activeTargetLanguage);
         }
       }, async (content) => {
         streamOutput += content;
@@ -129,9 +137,12 @@ async function flushQueue(): Promise<void> {
       const content = readChatContent(responseData);
       await updateRequestOutput(activeCallLog, content, true);
       await recordTranslationUsage(activeApiConfig, body, content, responseData);
-      parseChatJsonlResults(responseData, idSet).forEach((text, tid) => results.set(tid, text));
+      parseChatJsonlResults(responseData, idSet).forEach((text, tid) => {
+        results.set(tid, text);
+      });
     }
 
+    await writeBatchCache(batch, activeConfig, results, activeTargetLanguage);
     batch.forEach((item) => item.resolve({ tid: item.id, text: results.get(item.id) ?? null }));
   } catch (error) {
     if (callLog) {
@@ -165,7 +176,11 @@ function takeBatch(config: TranslationModeConfig): PendingItem[] {
   return batch;
 }
 
-function buildRequestBody(config: TranslationModeConfig, batch: PendingItem[]): Record<string, unknown> {
+function buildRequestBody(
+  config: TranslationModeConfig,
+  batch: PendingItem[],
+  targetLanguage: string,
+): Record<string, unknown> {
   return {
     stream: true,
     temperature: config.parameters.temperature,
@@ -173,7 +188,7 @@ function buildRequestBody(config: TranslationModeConfig, batch: PendingItem[]): 
     messages: [
       {
         role: 'system',
-        content: renderPrompt(config),
+        content: renderPrompt(config, targetLanguage),
       },
       {
         role: 'user',
@@ -183,13 +198,13 @@ function buildRequestBody(config: TranslationModeConfig, batch: PendingItem[]): 
   };
 }
 
-function renderPrompt(config: TranslationModeConfig): string {
+function renderPrompt(config: TranslationModeConfig, targetLanguage: string): string {
   const preserveText = config.options.preserveFormatting
     ? 'Preserve source formatting and placeholders'
     : 'Output plain translated text';
   return config.prompt
     .replaceAll('{FORMAT_MODE}', preserveText)
-    .replaceAll('{TARGET_LOCALE}', currentTargetLanguage || 'en-us');
+    .replaceAll('{TARGET_LOCALE}', targetLanguage || 'en-us');
 }
 
 async function readJsonlStream(
@@ -230,8 +245,20 @@ async function readJsonlStream(
   parseJsonlLines(`${jsonlBuffer}${parsed.content}\n`, idSet, onResult);
 }
 
-function resolveMatched(batch: PendingItem[], tid: string, text: string | null): void {
-  batch.find((item) => item.id === tid)?.resolve({ tid, text });
+function resolveMatched(
+  batch: PendingItem[],
+  config: TranslationModeConfig,
+  tid: string,
+  text: string | null,
+  targetLanguage: string,
+): void {
+  const item = batch.find((pendingItem) => pendingItem.id === tid);
+  if (!item) {
+    return;
+  }
+
+  void writeCacheIfEnabled(config, item.text, text, targetLanguage);
+  item.resolve({ tid, text });
 }
 
 function isStreamResponse(response: Response): boolean {
@@ -250,6 +277,30 @@ async function assignBatchIds(batch: PendingItem[]): Promise<void> {
   for (const item of batch) {
     item.id = await createTranslationCacheKey(item.text);
   }
+}
+
+async function writeBatchCache(
+  batch: PendingItem[],
+  config: TranslationModeConfig,
+  results: Map<string, string | null>,
+  targetLanguage: string,
+): Promise<void> {
+  await Promise.all(
+    batch.map(async (item) => {
+      if (results.has(item.id)) {
+        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null, targetLanguage);
+      }
+    }),
+  );
+}
+
+async function writeCacheIfEnabled(
+  config: TranslationModeConfig,
+  sourceText: string,
+  text: string | null,
+  targetLanguage: string,
+): Promise<void> {
+  await writeCachedNormalTranslation(config, sourceText, text, targetLanguage);
 }
 
 function readChatContent(data: unknown): string {
