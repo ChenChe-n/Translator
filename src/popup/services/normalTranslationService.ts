@@ -52,7 +52,7 @@ export async function translateNormalMode(
     };
   }
 
-  const cachedResult = await readCachedNormalTranslation(modeConfig, input, targetLanguage);
+  const cachedResult = await readCachedNormalTranslation(modeConfig, input);
 
   if (cachedResult) {
     return cachedResult;
@@ -124,7 +124,7 @@ async function flushQueue(): Promise<void> {
       await readJsonlStream(responseInfo.response, idSet, (tid, text) => {
         if (!results.has(tid)) {
           results.set(tid, text);
-          resolveMatched(batch, activeConfig, tid, text, activeTargetLanguage);
+          resolveMatched(batch, activeConfig, tid, text);
         }
       }, async (content) => {
         streamOutput += content;
@@ -142,7 +142,7 @@ async function flushQueue(): Promise<void> {
       });
     }
 
-    await writeBatchCache(batch, activeConfig, results, activeTargetLanguage);
+    await writeBatchCache(batch, activeConfig, results);
     batch.forEach((item) => item.resolve({ tid: item.id, text: results.get(item.id) ?? null }));
   } catch (error) {
     if (callLog) {
@@ -250,14 +250,13 @@ function resolveMatched(
   config: TranslationModeConfig,
   tid: string,
   text: string | null,
-  targetLanguage: string,
 ): void {
   const item = batch.find((pendingItem) => pendingItem.id === tid);
   if (!item) {
     return;
   }
 
-  void writeCacheIfEnabled(config, item.text, text, targetLanguage);
+  void writeCacheIfEnabled(config, item.text, text);
   item.resolve({ tid, text });
 }
 
@@ -283,12 +282,11 @@ async function writeBatchCache(
   batch: PendingItem[],
   config: TranslationModeConfig,
   results: Map<string, string | null>,
-  targetLanguage: string,
 ): Promise<void> {
   await Promise.all(
     batch.map(async (item) => {
       if (results.has(item.id)) {
-        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null, targetLanguage);
+        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null);
       }
     }),
   );
@@ -298,9 +296,8 @@ async function writeCacheIfEnabled(
   config: TranslationModeConfig,
   sourceText: string,
   text: string | null,
-  targetLanguage: string,
 ): Promise<void> {
-  await writeCachedNormalTranslation(config, sourceText, text, targetLanguage);
+  await writeCachedNormalTranslation(config, sourceText, text);
 }
 
 function readChatContent(data: unknown): string {

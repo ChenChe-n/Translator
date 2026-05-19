@@ -8,13 +8,11 @@ import { createTranslationCacheKey } from './translationCacheKey';
  *
  * @param config 翻译配置。
  * @param input 翻译输入。
- * @param targetLanguage 目标语言。
  * @returns 命中的翻译结果。
  */
 export async function readCachedNormalTranslation(
   config: TranslationModeConfig,
   input: NormalTranslationInput,
-  targetLanguage: string,
 ): Promise<NormalTranslationResult | undefined> {
   if (!shouldUseNormalTranslationCache(config)) {
     return undefined;
@@ -23,7 +21,7 @@ export async function readCachedNormalTranslation(
   const cached = await readNormalTranslationCache({
     config,
     sourceText: input.text,
-    targetLanguage,
+    tid: await createTranslationCacheKey(input.text),
   });
 
   return cached
@@ -40,14 +38,12 @@ export async function readCachedNormalTranslation(
  * @param config 翻译配置。
  * @param sourceText 原文。
  * @param text 译文。
- * @param targetLanguage 目标语言。
  * @returns 无返回值。
  */
 export async function writeCachedNormalTranslation(
   config: TranslationModeConfig,
   sourceText: string,
   text: string | null,
-  targetLanguage: string,
 ): Promise<void> {
   if (!shouldUseNormalTranslationCache(config)) {
     return;
@@ -56,7 +52,7 @@ export async function writeCachedNormalTranslation(
   await writeNormalTranslationCache({
     config,
     sourceText,
-    targetLanguage,
+    tid: await createTranslationCacheKey(sourceText),
   }, text);
 }
 

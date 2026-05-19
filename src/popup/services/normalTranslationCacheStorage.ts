@@ -3,15 +3,12 @@ import type { TranslationModeConfig } from '../types/translationMode';
 export interface NormalTranslationCacheInput {
   config: TranslationModeConfig;
   sourceText: string;
-  targetLanguage: string;
+  tid: string;
 }
 
 interface NormalTranslationCacheEntry {
   key: string;
-  promptHash: string;
-  sourceHash: string;
   sourceText: string;
-  targetLanguage: string;
   text: string | null;
   updatedAt: number;
 }
@@ -106,11 +103,7 @@ async function saveNormalTranslationCache(cache: Record<string, NormalTranslatio
 }
 
 async function createNormalTranslationCacheKey(input: NormalTranslationCacheInput): Promise<string> {
-  const [sourceHash, promptHash] = await Promise.all([
-    hashText(input.sourceText),
-    hashText(createPromptScope(input)),
-  ]);
-  return `${input.targetLanguage}:${Number(input.config.options.preserveFormatting)}:${promptHash}:${sourceHash}`;
+  return input.tid;
 }
 
 async function createCacheEntry(
@@ -120,55 +113,14 @@ async function createCacheEntry(
 ): Promise<NormalTranslationCacheEntry> {
   return {
     key,
-    promptHash: await hashText(createPromptScope(input)),
-    sourceHash: await hashText(input.sourceText),
     sourceText: input.sourceText,
-    targetLanguage: input.targetLanguage,
     text,
     updatedAt: Date.now(),
   };
 }
 
 function isEntryMatched(entry: NormalTranslationCacheEntry | undefined, input: NormalTranslationCacheInput): boolean {
-  return Boolean(
-    entry &&
-      entry.sourceText === input.sourceText &&
-      entry.targetLanguage === input.targetLanguage,
-  );
-}
-
-function createPromptScope(input: NormalTranslationCacheInput): string {
-  return [
-    input.config.prompt,
-    input.config.options.preserveFormatting ? 'preserve' : 'plain',
-    input.targetLanguage,
-  ].join('\n');
-}
-
-async function hashText(text: string): Promise<string> {
-  if (globalThis.crypto?.subtle) {
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-    return bytesToBase64(new Uint8Array(digest)).slice(0, 24);
-  }
-
-  return bytesToBase64(fallbackHashBytes(text));
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let result = '';
-  bytes.forEach((byte) => {
-    result += String.fromCharCode(byte);
-  });
-  return btoa(result).replace(/=+$/g, '');
-}
-
-function fallbackHashBytes(text: string): Uint8Array {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < text.length; index += 1) {
-    hash ^= text.charCodeAt(index);
-    hash = Math.imul(hash, 16777619);
-  }
-  return new Uint8Array([(hash >>> 24) & 255, (hash >>> 16) & 255, (hash >>> 8) & 255, hash & 255]);
+  return Boolean(entry && entry.key === input.tid);
 }
 
 function readPreviewCache(): Record<string, NormalTranslationCacheEntry> {

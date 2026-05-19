@@ -193,7 +193,7 @@ async function translateAndWrite(
       runtimeConfig.targetLanguage,
     );
 
-    if (result.text && isReferenceConnected(reference)) {
+    if (result.text && isReferenceWritable(reference)) {
       writeTextReference(reference, result.text, overwriteState);
     }
   } catch {
@@ -201,8 +201,20 @@ async function translateAndWrite(
   }
 }
 
+function isReferenceWritable(reference: ParsedTextReference): boolean {
+  return isReferenceConnected(reference) && readCurrentReferenceText(reference) === reference.text;
+}
+
 function isReferenceConnected(reference: ParsedTextReference): boolean {
   return reference.owner.isConnected && (reference.kind === 'attribute' || reference.node.isConnected);
+}
+
+function readCurrentReferenceText(reference: ParsedTextReference): string {
+  if (reference.kind === 'text') {
+    return reference.node.nodeValue?.trim() ?? '';
+  }
+
+  return reference.owner.getAttribute(reference.attributeName)?.trim() ?? '';
 }
 
 function isApiConfigReady(runtimeConfig: TextParseRuntimeConfig): boolean {
