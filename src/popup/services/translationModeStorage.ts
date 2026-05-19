@@ -3,12 +3,18 @@ import type {
   TranslationModeConfigMap,
   TranslationModeKey,
 } from '../types/translationMode';
+import { loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
 
 const translationModeKeys: TranslationModeKey[] = ['normal', 'batch', 'context'];
 const translationModeStorageKeys: Record<TranslationModeKey, string> = {
   normal: 'Translator.translationMode.normal',
   batch: 'Translator.translationMode.batch',
   context: 'Translator.translationMode.context',
+};
+const storageOptions = {
+  modes: translationModeKeys,
+  storageKeys: translationModeStorageKeys,
+  normalizeConfigMap,
 };
 
 /**
@@ -30,12 +36,7 @@ export function createDefaultTranslationModeConfigMap(): TranslationModeConfigMa
  * @returns 翻译模式配置集合。
  */
 export async function loadTranslationModeConfigMap(): Promise<TranslationModeConfigMap> {
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    return loadPreviewConfigMap();
-  }
-
-  const stored = await chrome.storage.local.get(Object.values(translationModeStorageKeys));
-  return normalizeConfigMap(readStoredConfigMap(stored));
+  return loadConfigMapFromStorage(storageOptions);
 }
 
 /**
@@ -45,14 +46,7 @@ export async function loadTranslationModeConfigMap(): Promise<TranslationModeCon
  * @returns 无返回值。
  */
 export async function saveTranslationModeConfigMap(configMap: TranslationModeConfigMap): Promise<void> {
-  const nextConfigMap = normalizeConfigMap(configMap);
-
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    savePreviewConfigMap(nextConfigMap);
-    return;
-  }
-
-  await chrome.storage.local.set(buildStoragePayload(nextConfigMap));
+  await saveConfigMapToStorage(storageOptions, configMap);
 }
 
 function createModeConfig(mode: TranslationModeKey, cachePath: string): TranslationModeConfig {
@@ -68,43 +62,6 @@ function createModeConfig(mode: TranslationModeKey, cachePath: string): Translat
       enableCache: true,
     },
   };
-}
-
-function loadPreviewConfigMap(): TranslationModeConfigMap {
-  return normalizeConfigMap(
-    translationModeKeys.reduce((result, mode) => {
-      const value = localStorage.getItem(translationModeStorageKeys[mode]);
-
-      if (value) {
-        result[mode] = JSON.parse(value) as TranslationModeConfig;
-      }
-
-      return result;
-    }, {} as Partial<TranslationModeConfigMap>),
-  );
-}
-
-function savePreviewConfigMap(configMap: TranslationModeConfigMap): void {
-  translationModeKeys.forEach((mode) => {
-    localStorage.setItem(translationModeStorageKeys[mode], JSON.stringify(configMap[mode]));
-  });
-}
-
-function readStoredConfigMap(stored: Record<string, unknown>): Partial<TranslationModeConfigMap> {
-  return translationModeKeys.reduce((result, mode) => {
-    result[mode] = stored[translationModeStorageKeys[mode]] as TranslationModeConfig | undefined;
-    return result;
-  }, {} as Partial<TranslationModeConfigMap>);
-}
-
-function buildStoragePayload(configMap: TranslationModeConfigMap): Record<string, TranslationModeConfig> {
-  return translationModeKeys.reduce(
-    (result, mode) => ({
-      ...result,
-      [translationModeStorageKeys[mode]]: configMap[mode],
-    }),
-    {},
-  );
 }
 
 function normalizeConfigMap(configMap: Partial<TranslationModeConfigMap> | undefined): TranslationModeConfigMap {
