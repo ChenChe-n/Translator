@@ -18,15 +18,16 @@ export async function readCachedNormalTranslation(
     return undefined;
   }
 
+  const tid = await createTranslationCacheKey(input.text);
   const cached = await readNormalTranslationCache({
     config,
     sourceText: input.text,
-    tid: await createTranslationCacheKey(input.text),
+    tid,
   });
 
   return cached
     ? {
-        tid: await createTranslationCacheKey(input.text),
+        tid,
         text: cached.text,
       }
     : undefined;

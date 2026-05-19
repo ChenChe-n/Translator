@@ -12,6 +12,9 @@ import { appendTextParseMetric } from '../popup/services/textParseMetricsStorage
 import { translateNormalMode } from '../popup/services/normalTranslationService';
 
 const minimumDelayMs = 100;
+const maxTranslationConcurrency = 4;
+const translationChunkSize = 24;
+let translationQueueRunning = false;
 
 interface TranslationTracker {
   attributes: WeakMap<TextReferenceOwner, Set<string>>;
@@ -58,6 +61,7 @@ export function createTextParseController(): { start: () => void } {
 
     if (!config.runtimeSettings.parseEnabled) {
       window.clearTimeout(scanTimer);
+      clearTranslationQueue();
       clearTextMarkers();
       restoreOverwrittenReferences(testOverwriteState);
       restoreOverwrittenReferences(translationOverwriteState);
@@ -88,12 +92,13 @@ export function createTextParseController(): { start: () => void } {
       }
 
       if (config.activeConfig.options.overwriteWithTestText) {
+        clearTranslationQueue();
         restoreOverwrittenReferences(translationOverwriteState);
         translatedReferences = createTranslationTracker();
         overwriteTextReferences([...references.values()], config.activeConfig.options.testText, testOverwriteState);
       } else {
         restoreOverwrittenReferences(testOverwriteState);
-        translateReferences([...references.values()], config, translatedReferences, translationOverwriteState);
+        queueTranslateReferences([...references.values()], config, translatedReferences, translationOverwriteState);
       }
 
       await appendTextParseMetric({
@@ -116,6 +121,7 @@ export function createTextParseController(): { start: () => void } {
     config = await loadTextParseRuntimeConfig();
 
     if (shouldResetTranslations(changes)) {
+      clearTranslationQueue();
       restoreOverwrittenReferences(translationOverwriteState);
       translatedReferences = createTranslationTracker();
     }
@@ -158,7 +164,7 @@ function shouldResetTranslations(changes: Record<string, chrome.storage.StorageC
   );
 }
 
-function translateReferences(
+function queueTranslateReferences(
   items: ParsedTextReference[],
   runtimeConfig: TextParseRuntimeConfig,
   translatedReferences: TranslationTracker,
@@ -170,12 +176,70 @@ function translateReferences(
   }
 
   items.forEach((reference) => {
-    if (hasTranslated(reference, translatedReferences)) {
+    if (hasTranslated(reference, translatedReferences) || !isReferenceWritable(reference)) {
       return;
     }
 
     markTranslated(reference, translatedReferences);
-    void translateAndWrite(reference, runtimeConfig, translatedReferences, overwriteState);
+    translationQueue.push({
+      reference,
+      runtimeConfig,
+      translatedReferences,
+      overwriteState,
+    });
+  });
+
+  runTranslationQueue();
+}
+
+interface TranslationTask {
+  overwriteState: ReturnType<typeof createTextOverwriteState>;
+  reference: ParsedTextReference;
+  runtimeConfig: TextParseRuntimeConfig;
+  translatedReferences: TranslationTracker;
+}
+
+const translationQueue: TranslationTask[] = [];
+
+function clearTranslationQueue(): void {
+  translationQueue.length = 0;
+}
+
+function runTranslationQueue(): void {
+  if (translationQueueRunning) {
+    return;
+  }
+
+  translationQueueRunning = true;
+  void drainTranslationQueue();
+}
+
+async function drainTranslationQueue(): Promise<void> {
+  while (translationQueue.length > 0) {
+    const tasks = translationQueue.splice(0, maxTranslationConcurrency);
+    await Promise.all(tasks.map((task) => translateAndWrite(
+      task.reference,
+      task.runtimeConfig,
+      task.translatedReferences,
+      task.overwriteState,
+    )));
+
+    if (translationQueue.length % translationChunkSize === 0) {
+      await waitForIdleSlice();
+    }
+  }
+
+  translationQueueRunning = false;
+}
+
+function waitForIdleSlice(): Promise<void> {
+  return new Promise((resolve) => {
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => resolve(), { timeout: 50 });
+      return;
+    }
+
+    window.setTimeout(resolve, 0);
   });
 }
 

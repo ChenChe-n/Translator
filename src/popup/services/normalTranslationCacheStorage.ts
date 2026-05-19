@@ -15,7 +15,9 @@ interface NormalTranslationCacheEntry {
 
 export const NORMAL_TRANSLATION_CACHE_KEY = 'Translator.translationCache.normal';
 const maxCacheEntries = 5000;
+const saveDelayMs = 400;
 let memoryCache: Record<string, NormalTranslationCacheEntry> | undefined;
+let saveTimer: number | undefined;
 
 if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -55,7 +57,7 @@ export async function writeNormalTranslationCache(
   const cache = await loadNormalTranslationCache();
   const key = await createNormalTranslationCacheKey(input);
   cache[key] = await createCacheEntry(input, key, text);
-  await saveNormalTranslationCache(cache);
+  scheduleNormalTranslationCacheSave(cache);
 }
 
 /**
@@ -65,6 +67,7 @@ export async function writeNormalTranslationCache(
  */
 export async function clearNormalTranslationCache(): Promise<void> {
   memoryCache = {};
+  window.clearTimeout(saveTimer);
 
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
     localStorage.removeItem(NORMAL_TRANSLATION_CACHE_KEY);
@@ -100,6 +103,14 @@ async function saveNormalTranslationCache(cache: Record<string, NormalTranslatio
   await chrome.storage.local.set({
     [NORMAL_TRANSLATION_CACHE_KEY]: memoryCache,
   });
+}
+
+function scheduleNormalTranslationCacheSave(cache: Record<string, NormalTranslationCacheEntry>): void {
+  memoryCache = cache;
+  window.clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => {
+    void saveNormalTranslationCache(memoryCache ?? {});
+  }, saveDelayMs);
 }
 
 async function createNormalTranslationCacheKey(input: NormalTranslationCacheInput): Promise<string> {
