@@ -28,5 +28,4 @@ const model = defineModel<ApiConfig>({ required: true });
 .config-form :deep(.el-form-item) {
   margin-bottom: 10px;
 }
-
 </style>

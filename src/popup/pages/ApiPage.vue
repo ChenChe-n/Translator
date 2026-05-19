@@ -1,7 +1,10 @@
 <template>
   <section class="page-shell" aria-label="api">
     <ApiConfigForm v-model="config" />
-    <ElButton type="primary" class="test-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
+    <div class="action-row">
+      <ElButton class="action-button" @click="handleSaveConfig">保存</ElButton>
+      <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
+    </div>
     <section class="result-panel">
       <h2 class="panel-title">上一次测试信息:</h2>
       <ul class="check-list">
@@ -70,6 +73,12 @@ onMounted(async () => {
     checkResults.value = mergeResults(storedResults);
   }
 });
+
+async function handleSaveConfig(): Promise<void> {
+  ensureConfig();
+  await saveApiConfig({ ...config.value });
+  ElMessage.success('配置已保存');
+}
 
 async function handleRunChecks(): Promise<void> {
   testing.value = true;
@@ -162,7 +171,13 @@ function getStateClass(item: ApiCheckResult): string {
   background: #f8fafc;
 }
 
-.test-button {
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.action-button {
   width: 100%;
   height: 38px;
 }
