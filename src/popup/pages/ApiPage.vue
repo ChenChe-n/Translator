@@ -7,7 +7,10 @@
       <ul class="check-list">
         <li v-for="item in checkResults" :key="item.key" class="check-item">
           <span>{{ item.label }}</span>
-          <span :class="item.passed ? 'passed' : 'failed'">{{ item.passed ? '√' : '×' }}</span>
+          <span class="check-value">
+            <span v-if="item.durationMs && item.passed" class="duration">{{ formatDuration(item) }}</span>
+            <span :class="getStateClass(item)">{{ formatState(item) }}</span>
+          </span>
         </li>
       </ul>
     </section>
@@ -18,8 +21,13 @@
 import { ElButton, ElMessage } from 'element-plus';
 import { onMounted, ref } from 'vue';
 import ApiConfigForm from '../components/api/ApiConfigForm.vue';
-import { runApiHealthChecks } from '../services/apiHealthChecks';
-import { loadApiConfig, saveApiConfig } from '../services/apiConfigStorage';
+import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
+import {
+  loadApiCheckResults,
+  loadApiConfig,
+  saveApiCheckResults,
+  saveApiConfig,
+} from '../services/apiConfigStorage';
 import type { ApiCheckResult, ApiConfig } from '../types/api';
 
 const config = ref<ApiConfig>({
@@ -29,10 +37,15 @@ const config = ref<ApiConfig>({
 });
 
 const testing = ref(false);
-const checkResults = ref<ApiCheckResult[]>(createPendingResults());
+const checkResults = ref<ApiCheckResult[]>(createDefaultApiCheckResults());
 
 onMounted(async () => {
-  config.value = await loadApiConfig();
+  const [storedConfig, storedResults] = await Promise.all([loadApiConfig(), loadApiCheckResults()]);
+  config.value = storedConfig;
+
+  if (storedResults.length > 0) {
+    checkResults.value = mergeResults(storedResults);
+  }
 });
 
 async function handleRunChecks(): Promise<void> {
@@ -41,7 +54,11 @@ async function handleRunChecks(): Promise<void> {
   try {
     ensureConfig();
     await saveApiConfig({ ...config.value });
-    checkResults.value = await runApiHealthChecks(config.value);
+
+    for await (const result of runApiHealthChecks(config.value)) {
+      updateCheckResult(result);
+      await saveApiCheckResults(checkResults.value);
+    }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '测试失败');
   } finally {
@@ -55,33 +72,48 @@ function ensureConfig(): void {
   }
 }
 
-function createPendingResults(): ApiCheckResult[] {
-  return [
-    {
-      key: 'basicText',
-      label: '基本文本输入输出',
-      passed: false,
-      message: '未测试',
-    },
-    {
-      key: 'jsonOutput',
-      label: 'json结构化输出',
-      passed: false,
-      message: '未测试',
-    },
-    {
-      key: 'imageUnderstanding',
-      label: '图片理解',
-      passed: false,
-      message: '未测试',
-    },
-    {
-      key: 'streamOutput',
-      label: '流式输出',
-      passed: false,
-      message: '未测试',
-    },
-  ];
+function updateCheckResult(result: ApiCheckResult): void {
+  checkResults.value = checkResults.value.map((item) => (item.key === result.key ? result : item));
+}
+
+function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
+  return createDefaultApiCheckResults().map((item) => {
+    const stored = results.find((result) => result.key === item.key);
+
+    if (!stored) {
+      return item;
+    }
+
+    return {
+      ...item,
+      ...stored,
+      status: stored.status ?? 'finished',
+    };
+  });
+}
+
+function formatDuration(item: ApiCheckResult): string {
+  if (item.tokenPerSecond !== undefined) {
+    return `${item.durationMs}ms ${item.tokenPerSecond}/s`;
+  }
+
+  return `${item.durationMs}ms`;
+}
+
+function formatState(item: ApiCheckResult): string {
+  if (item.status === 'running') {
+    return '...';
+  }
+
+  return item.passed ? '√' : '×';
+}
+
+function getStateClass(item: ApiCheckResult): string {
+  if (item.status === 'running') {
+    return 'running';
+  }
+
+  return item.passed ? 'passed' : 'failed';
 }
 </script>
 
@@ -125,12 +157,29 @@ function createPendingResults(): ApiCheckResult[] {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   font-size: 13px;
   color: #334155;
 }
 
+.check-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.duration {
+  color: #64748b;
+}
+
 .passed {
   color: #16a34a;
+  font-weight: 700;
+}
+
+.running {
+  color: #2563eb;
   font-weight: 700;
 }
 

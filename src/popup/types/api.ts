@@ -13,11 +13,24 @@ export interface ApiConfig {
 export interface ApiCheckResult {
   key: ApiCheckKey;
   label: string;
+  status: ApiCheckStatus;
   passed: boolean;
   message: string;
+  durationMs?: number;
+  tokenPerSecond?: number;
 }
 
 /**
  * API 测试项标识。
  */
-export type ApiCheckKey = 'basicText' | 'jsonOutput' | 'imageUnderstanding' | 'streamOutput';
+export type ApiCheckKey =
+  | 'basicText'
+  | 'jsonOutput'
+  | 'imageUnderstanding'
+  | 'streamOutput'
+  | 'tokenThroughput';
+
+/**
+ * API 测试运行状态。
+ */
+export type ApiCheckStatus = 'pending' | 'running' | 'finished';
