@@ -11,7 +11,7 @@
       <ThemeColorEditor
         v-if="activeScheme"
         :colors="activeColors"
-        :readonly="activeScheme.kind === 'system'"
+        :readonly="activeScheme.kind !== 'custom'"
         @update="handleColorUpdate"
       />
     </section>
@@ -36,7 +36,8 @@ const activeScheme = computed(() =>
 const activeColors = computed(() => (activeScheme.value ? resolveThemeColors(activeScheme.value) : themeState.schemes[0].colors));
 
 async function handleCreateScheme(): Promise<void> {
-  const nextScheme = createThemeScheme(themeState.schemes.length);
+  const customCount = themeState.schemes.filter((item) => item.kind === 'custom').length;
+  const nextScheme = createThemeScheme(customCount + 1);
   themeState.schemes.push(nextScheme);
   themeState.activeSchemeId = nextScheme.id;
   await save();
@@ -44,7 +45,7 @@ async function handleCreateScheme(): Promise<void> {
 
 async function handleRemoveScheme(id: string): Promise<void> {
   const removingActive = themeState.activeSchemeId === id;
-  themeState.schemes = themeState.schemes.filter((item) => item.id !== id || item.kind === 'system');
+  themeState.schemes = themeState.schemes.filter((item) => item.id !== id || item.kind !== 'custom');
 
   if (removingActive) {
     themeState.activeSchemeId = themeState.schemes[0].id;
@@ -76,16 +77,16 @@ async function handleColorUpdate(colors: ThemeColors): Promise<void> {
   gap: 12px;
   align-content: start;
   padding: 12px;
-  background: var(--translator-bg, #f8fafc);
+  background: var(--translator-background);
 }
 
 .scheme-panel {
   display: grid;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: var(--translator-surface, #ffffff);
-  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+  background: var(--translator-container);
+  box-shadow: 0 8px 20px var(--translator-shadow);
 }
 </style>

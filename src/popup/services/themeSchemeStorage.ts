@@ -3,27 +3,68 @@ import type { ThemeColors, ThemeScheme, ThemeSchemeState } from '../types/theme'
 const THEME_STORAGE_KEY = 'Translator.themeSchemeState';
 const SYSTEM_SCHEME_ID = 'system';
 
-const defaultSystemColors: ThemeColors = {
-  primary: '#1f2937',
+export const dayColors: ThemeColors = {
   background: '#f8fafc',
-  accent: '#3b82f6',
+  container: '#ffffff',
+  shadow: '#d6dee8',
+  text: '#111827',
+  muted: '#64748b',
+  marker: '#16a34a',
+  button: '#ffffff',
+  keyButton: '#1f2937',
+  border: '#dbe4ef',
 };
 
-const defaultCustomColors: ThemeColors = {
-  primary: '#1f2937',
-  background: '#ffffff',
-  accent: '#409eff',
+export const nightColors: ThemeColors = {
+  background: '#0f172a',
+  container: '#111827',
+  shadow: '#020617',
+  text: '#e5e7eb',
+  muted: '#94a3b8',
+  marker: '#38bdf8',
+  button: '#1e293b',
+  keyButton: '#2563eb',
+  border: '#334155',
 };
 
-/**
- * 系统配色方案。
- */
-export const systemThemeScheme: ThemeScheme = {
-  id: SYSTEM_SCHEME_ID,
-  name: '系统',
-  kind: 'system',
-  colors: defaultSystemColors,
+export const sakuraColors: ThemeColors = {
+  background: '#fff7fb',
+  container: '#ffffff',
+  shadow: '#f6c5d8',
+  text: '#3f2632',
+  muted: '#9b6478',
+  marker: '#f472b6',
+  button: '#fff0f6',
+  keyButton: '#db2777',
+  border: '#f8bfd5',
 };
+
+export const presetThemeSchemes: ThemeScheme[] = [
+  {
+    id: SYSTEM_SCHEME_ID,
+    name: '系统',
+    kind: 'system',
+    colors: dayColors,
+  },
+  {
+    id: 'day',
+    name: '白天',
+    kind: 'preset',
+    colors: dayColors,
+  },
+  {
+    id: 'night',
+    name: '黑夜',
+    kind: 'preset',
+    colors: nightColors,
+  },
+  {
+    id: 'sakura',
+    name: '樱花',
+    kind: 'preset',
+    colors: sakuraColors,
+  },
+];
 
 /**
  * 创建默认配色状态。
@@ -33,7 +74,7 @@ export const systemThemeScheme: ThemeScheme = {
 export function createDefaultThemeSchemeState(): ThemeSchemeState {
   return {
     activeSchemeId: SYSTEM_SCHEME_ID,
-    schemes: [systemThemeScheme],
+    schemes: presetThemeSchemes,
   };
 }
 
@@ -48,7 +89,7 @@ export function createThemeScheme(index: number): ThemeScheme {
     id: `scheme-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     name: `方案${index}`,
     kind: 'custom',
-    colors: defaultCustomColors,
+    colors: dayColors,
   };
 }
 
@@ -91,8 +132,8 @@ function loadPreviewThemeSchemeState(): ThemeSchemeState {
 }
 
 function normalizeState(state: ThemeSchemeState | undefined): ThemeSchemeState {
-  const customSchemes = state?.schemes.filter((item) => item.kind !== 'system') ?? [];
-  const schemes = [systemThemeScheme, ...customSchemes.map(normalizeCustomScheme)];
+  const customSchemes = state?.schemes.filter((item) => item.kind === 'custom') ?? [];
+  const schemes = [...presetThemeSchemes, ...customSchemes.map(normalizeCustomScheme)];
   const activeSchemeId = schemes.some((item) => item.id === state?.activeSchemeId)
     ? String(state?.activeSchemeId)
     : SYSTEM_SCHEME_ID;
@@ -108,9 +149,16 @@ function normalizeCustomScheme(scheme: ThemeScheme): ThemeScheme {
     ...scheme,
     kind: 'custom',
     name: scheme.name || '方案',
-    colors: {
-      ...defaultCustomColors,
-      ...scheme.colors,
-    },
+    colors: normalizeColors(scheme.colors),
+  };
+}
+
+function normalizeColors(colors: Partial<ThemeColors> & { primary?: string; accent?: string }): ThemeColors {
+  return {
+    ...dayColors,
+    ...colors,
+    text: colors.text ?? colors.primary ?? dayColors.text,
+    marker: colors.marker ?? colors.accent ?? dayColors.marker,
+    keyButton: colors.keyButton ?? colors.primary ?? dayColors.keyButton,
   };
 }

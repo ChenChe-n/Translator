@@ -1,15 +1,27 @@
 import type { ThemeColors, ThemeScheme } from '../types/theme';
 
 const lightSystemColors: ThemeColors = {
-  primary: '#1f2937',
   background: '#f8fafc',
-  accent: '#3b82f6',
+  container: '#ffffff',
+  shadow: '#d6dee8',
+  text: '#111827',
+  muted: '#64748b',
+  marker: '#16a34a',
+  button: '#ffffff',
+  keyButton: '#1f2937',
+  border: '#dbe4ef',
 };
 
 const darkSystemColors: ThemeColors = {
-  primary: '#e5e7eb',
   background: '#0f172a',
-  accent: '#60a5fa',
+  container: '#111827',
+  shadow: '#020617',
+  text: '#e5e7eb',
+  muted: '#94a3b8',
+  marker: '#38bdf8',
+  button: '#1e293b',
+  keyButton: '#2563eb',
+  border: '#334155',
 };
 
 /**
@@ -34,10 +46,33 @@ export function resolveThemeColors(scheme: ThemeScheme): ThemeColors {
  */
 export function applyThemeColors(colors: ThemeColors): void {
   const root = document.documentElement;
-  root.style.setProperty('--translator-primary', colors.primary);
-  root.style.setProperty('--translator-bg', colors.background);
-  root.style.setProperty('--translator-accent', colors.accent);
-  root.style.setProperty('--translator-surface', getSurfaceColor(colors.background));
+  const nextColors = normalizeThemeColors(colors);
+  root.style.setProperty('--translator-background', nextColors.background);
+  root.style.setProperty('--translator-container', nextColors.container);
+  root.style.setProperty('--translator-shadow', nextColors.shadow);
+  root.style.setProperty('--translator-text', nextColors.text);
+  root.style.setProperty('--translator-muted', nextColors.muted);
+  root.style.setProperty('--translator-marker', nextColors.marker);
+  root.style.setProperty('--translator-button', nextColors.button);
+  root.style.setProperty('--translator-key-button', nextColors.keyButton);
+  root.style.setProperty('--translator-border', nextColors.border);
+  createModelColors(nextColors.marker).forEach((color, index) => {
+    root.style.setProperty(`--translator-model-${index}`, color);
+  });
+}
+
+function normalizeThemeColors(colors: ThemeColors): ThemeColors {
+  return {
+    background: toHexColor(colors.background),
+    container: toHexColor(colors.container),
+    shadow: toHexColor(colors.shadow),
+    text: toHexColor(colors.text),
+    muted: toHexColor(colors.muted),
+    marker: toHexColor(colors.marker),
+    button: toHexColor(colors.button),
+    keyButton: toHexColor(colors.keyButton),
+    border: toHexColor(colors.border),
+  };
 }
 
 /**
@@ -55,11 +90,14 @@ export function watchSystemTheme(callback: () => void): () => void {
 function getSystemThemeColors(): ThemeColors {
   const dark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const colors = dark ? darkSystemColors : lightSystemColors;
+  const accent = getBrowserAccentColor();
 
   return {
-    primary: readSystemColor('CanvasText') ?? colors.primary,
+    ...colors,
     background: readSystemColor('Canvas') ?? colors.background,
-    accent: getBrowserAccentColor() ?? colors.accent,
+    text: readSystemColor('CanvasText') ?? colors.text,
+    marker: accent ?? colors.marker,
+    keyButton: accent ?? colors.keyButton,
   };
 }
 
@@ -89,20 +127,52 @@ function readSystemColor(name: string): string | undefined {
 
 function normalizeColor(value: string | undefined): string | undefined {
   const color = value?.trim();
-  return color && color !== 'auto' ? color : undefined;
+  return color && color !== 'auto' ? toHexColor(color) : undefined;
 }
 
-function getSurfaceColor(background: string): string {
-  return isDarkColor(background) ? '#111827' : '#ffffff';
+function createModelColors(baseColor: string): string[] {
+  const hue = extractHue(baseColor);
+  return Array.from({ length: 8 }, (_, index) => `hsl(${(hue + index * 43) % 360} 70% 48%)`);
 }
 
-function isDarkColor(color: string): boolean {
-  const numbers = color.match(/\d+/g)?.map(Number);
+function toHexColor(color: string): string {
+  const normalized = color.trim();
+  const numbers = normalized.match(/\d+/g)?.map(Number);
 
   if (!numbers || numbers.length < 3) {
-    return color.toLowerCase() === '#0f172a';
+    return normalized;
   }
 
   const [red, green, blue] = numbers;
-  return (red * 299 + green * 587 + blue * 114) / 1000 < 128;
+  return `#${toHexPart(red)}${toHexPart(green)}${toHexPart(blue)}`;
+}
+
+function toHexPart(value: number): string {
+  return Math.max(0, Math.min(255, value)).toString(16).padStart(2, '0');
+}
+
+function extractHue(color: string): number {
+  const numbers = color.match(/\d+/g)?.map(Number);
+
+  if (!numbers || numbers.length < 3) {
+    return 210;
+  }
+
+  const [red, green, blue] = numbers.map((value) => value / 255);
+  const max = Math.max(red, green, blue);
+  const min = Math.min(red, green, blue);
+  const diff = max - min;
+
+  if (diff === 0) {
+    return 210;
+  }
+
+  const hue =
+    max === red
+      ? (60 * ((green - blue) / diff) + 360) % 360
+      : max === green
+        ? 60 * ((blue - red) / diff) + 120
+        : 60 * ((red - green) / diff) + 240;
+
+  return Math.round(hue);
 }

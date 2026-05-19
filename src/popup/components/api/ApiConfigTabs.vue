@@ -105,18 +105,18 @@ function getConfigName(config: ApiConfig, index: number): string {
   gap: 6px;
   max-width: 160px;
   padding: 0 10px;
-  border: 1px solid #dbe4ef;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
-  color: #334155;
+  background: var(--translator-button);
+  color: var(--translator-text);
   font-size: 12px;
 }
 
 .config-tab.active {
-  border-color: #1f2937;
-  background: #1f2937;
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgb(15 23 42 / 14%);
+  border-color: var(--translator-key-button);
+  background: var(--translator-key-button);
+  color: var(--translator-button);
+  box-shadow: 0 8px 18px var(--translator-shadow);
 }
 
 .tab-name {
@@ -132,6 +132,6 @@ function getConfigName(config: ApiConfig, index: number): string {
 
 .new-tab {
   border-style: dashed;
-  color: #2563eb;
+  color: var(--translator-marker);
 }
 </style>

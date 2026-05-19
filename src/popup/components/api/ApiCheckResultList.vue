@@ -48,16 +48,16 @@ function getStateClass(item: ApiCheckResult): string {
 <style scoped>
 .result-panel {
   padding: 12px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--translator-container);
 }
 
 .panel-title {
   margin: 0 0 10px;
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--translator-text);
 }
 
 .check-list {
@@ -74,7 +74,7 @@ function getStateClass(item: ApiCheckResult): string {
   justify-content: space-between;
   gap: 10px;
   font-size: 13px;
-  color: #334155;
+  color: var(--translator-text);
 }
 
 .check-value {
@@ -85,21 +85,21 @@ function getStateClass(item: ApiCheckResult): string {
 }
 
 .duration {
-  color: #64748b;
+  color: var(--translator-muted);
 }
 
 .passed {
-  color: #16a34a;
+  color: var(--translator-marker);
   font-weight: 700;
 }
 
 .running {
-  color: #2563eb;
+  color: var(--translator-key-button);
   font-weight: 700;
 }
 
 .failed {
-  color: #dc2626;
+  color: var(--translator-muted);
   font-weight: 700;
 }
 </style>

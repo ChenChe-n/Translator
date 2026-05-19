@@ -68,14 +68,7 @@ const normalizedItems = computed(() => {
 .empty-chart {
   height: 92px;
   border-radius: 6px;
-  background:
-    repeating-linear-gradient(
-      90deg,
-      #eef2f7 0,
-      #eef2f7 10px,
-      transparent 10px,
-      transparent 18px
-    );
+  background: var(--translator-button);
 }
 
 .bar-column {
@@ -92,7 +85,7 @@ const normalizedItems = computed(() => {
   flex-direction: column-reverse;
   justify-content: flex-start;
   border-radius: 4px;
-  background: #eef2f7;
+  background: var(--translator-button);
   overflow: hidden;
 }
 
@@ -118,7 +111,7 @@ const normalizedItems = computed(() => {
 .bar-label {
   max-width: 34px;
   overflow: hidden;
-  color: #64748b;
+  color: var(--translator-muted);
   font-size: 10px;
   white-space: nowrap;
   text-overflow: ellipsis;

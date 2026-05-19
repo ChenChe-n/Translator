@@ -29,19 +29,49 @@ const emit = defineEmits<{
 
 const colorItems = computed(() => [
   {
-    key: 'primary' as const,
-    label: '主体',
-    value: props.colors.primary,
-  },
-  {
     key: 'background' as const,
-    label: '背景',
+    label: '背景色',
     value: props.colors.background,
   },
   {
-    key: 'accent' as const,
-    label: '强调',
-    value: props.colors.accent,
+    key: 'container' as const,
+    label: '容器色',
+    value: props.colors.container,
+  },
+  {
+    key: 'shadow' as const,
+    label: '阴影色',
+    value: props.colors.shadow,
+  },
+  {
+    key: 'text' as const,
+    label: '正文色',
+    value: props.colors.text,
+  },
+  {
+    key: 'muted' as const,
+    label: '备注色',
+    value: props.colors.muted,
+  },
+  {
+    key: 'marker' as const,
+    label: '标记色',
+    value: props.colors.marker,
+  },
+  {
+    key: 'button' as const,
+    label: '普通按钮色',
+    value: props.colors.button,
+  },
+  {
+    key: 'keyButton' as const,
+    label: '关键按钮色',
+    value: props.colors.keyButton,
+  },
+  {
+    key: 'border' as const,
+    label: '描边色',
+    value: props.colors.border,
   },
 ]);
 
@@ -69,10 +99,10 @@ function handleColorInput(key: keyof ThemeColors, event: Event): void {
   align-items: center;
   gap: 8px;
   padding: 0 10px;
-  border: 1px solid #dbe4ef;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: var(--translator-surface, #ffffff);
-  color: #334155;
+  background: var(--translator-button);
+  color: var(--translator-text);
   font-size: 12px;
 }
 
@@ -80,9 +110,9 @@ function handleColorInput(key: keyof ThemeColors, event: Event): void {
   width: 18px;
   height: 18px;
   flex: 0 0 auto;
-  border: 1px solid rgb(15 23 42 / 18%);
+  border: 1px solid var(--translator-border);
   border-radius: 4px;
-  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 60%);
+  box-shadow: inset 0 0 0 2px var(--translator-container);
 }
 
 .color-label {

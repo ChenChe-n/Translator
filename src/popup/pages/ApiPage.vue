@@ -249,17 +249,17 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
   display: grid;
   gap: 12px;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--translator-background);
 }
 
 .config-shell {
   display: grid;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
+  background: var(--translator-container);
+  box-shadow: 0 8px 20px var(--translator-shadow);
 }
 
 .action-row {

@@ -28,7 +28,7 @@ export interface DailyUsageChartItem {
   segments: DailyUsageSegment[];
 }
 
-const colors = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#64748b'];
+const MODEL_COLOR_COUNT = 8;
 
 /**
  * 聚合每日总用量。
@@ -113,11 +113,11 @@ export function aggregateModelRanking(
 
 export function createModelColorMap(usage: ModelDailyUsage[]): Map<string, string> {
   const models = [...new Set(usage.map((item) => item.model))].sort();
-  return new Map(models.map((model, index) => [model, colors[index % colors.length]]));
+  return new Map(models.map((model, index) => [model, `var(--translator-model-${index % MODEL_COLOR_COUNT})`]));
 }
 
 function getModelColor(model: string, colorMap: ReadonlyMap<string, string>): string {
-  return colorMap.get(model) ?? colors[0];
+  return colorMap.get(model) ?? 'var(--translator-model-0)';
 }
 
 function getTotalTokens(item: ModelDailyUsage): number {

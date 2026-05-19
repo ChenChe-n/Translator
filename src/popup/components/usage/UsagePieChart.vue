@@ -1,7 +1,7 @@
 <template>
   <div class="pie-wrap">
     <svg class="pie" viewBox="0 0 120 120" role="img" aria-label="模型使用率">
-      <circle v-if="segments.length === 0" cx="60" cy="60" r="45" fill="#eef2f7" />
+      <circle v-if="segments.length === 0" cx="60" cy="60" r="45" fill="var(--translator-button)" />
       <path
         v-for="segment in segments"
         :key="segment.model"
@@ -82,7 +82,7 @@ function getPoint(center: number, radius: number, percent: number): { x: number;
 .pie {
   width: 128px;
   height: 128px;
-  filter: drop-shadow(0 10px 18px rgb(15 23 42 / 12%));
+  filter: drop-shadow(0 10px 18px var(--translator-shadow));
 }
 
 .pie path {

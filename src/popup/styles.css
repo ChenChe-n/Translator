@@ -11,12 +11,42 @@ body,
 }
 
 body {
-  background: var(--translator-bg, #f8fafc);
-  color: var(--translator-primary, #1f2937);
-  accent-color: var(--translator-accent, #409eff);
+  background: var(--translator-background);
+  color: var(--translator-text);
+  accent-color: var(--translator-marker);
   font-family:
     Inter,
     "PingFang SC",
     "Microsoft YaHei",
     sans-serif;
+}
+
+:root {
+  --translator-background: #f8fafc;
+  --translator-container: #ffffff;
+  --translator-shadow: #d6dee8;
+  --translator-text: #111827;
+  --translator-muted: #64748b;
+  --translator-marker: #16a34a;
+  --translator-button: #ffffff;
+  --translator-key-button: #1f2937;
+  --translator-border: #dbe4ef;
+  --translator-model-0: #16a34a;
+  --translator-model-1: #0ea5e9;
+  --translator-model-2: #8b5cf6;
+  --translator-model-3: #f59e0b;
+  --translator-model-4: #ef4444;
+  --translator-model-5: #14b8a6;
+  --translator-model-6: #ec4899;
+  --translator-model-7: #64748b;
+  --el-color-primary: var(--translator-key-button);
+  --el-bg-color: var(--translator-container);
+  --el-bg-color-overlay: var(--translator-container);
+  --el-border-color: var(--translator-border);
+  --el-border-color-light: var(--translator-border);
+  --el-text-color-primary: var(--translator-text);
+  --el-text-color-regular: var(--translator-text);
+  --el-text-color-secondary: var(--translator-muted);
+  --el-fill-color-blank: var(--translator-container);
+  --el-fill-color-light: var(--translator-button);
 }

@@ -2,15 +2,21 @@
  * 配色方案颜色。
  */
 export interface ThemeColors {
-  primary: string;
   background: string;
-  accent: string;
+  container: string;
+  shadow: string;
+  text: string;
+  muted: string;
+  marker: string;
+  button: string;
+  keyButton: string;
+  border: string;
 }
 
 /**
  * 配色方案类型。
  */
-export type ThemeSchemeKind = 'system' | 'custom';
+export type ThemeSchemeKind = 'system' | 'preset' | 'custom';
 
 /**
  * 配色方案。

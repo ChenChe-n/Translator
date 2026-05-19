@@ -94,18 +94,18 @@ function handleSelect(id: string): void {
   gap: 6px;
   max-width: 160px;
   padding: 0 10px;
-  border: 1px solid #dbe4ef;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: var(--translator-surface, #ffffff);
-  color: #334155;
+  background: var(--translator-button);
+  color: var(--translator-text);
   font-size: 12px;
 }
 
 .scheme-tab.active {
-  border-color: var(--translator-primary, #1f2937);
-  background: var(--translator-primary, #1f2937);
-  color: #ffffff;
-  box-shadow: 0 8px 18px rgb(15 23 42 / 14%);
+  border-color: var(--translator-key-button);
+  background: var(--translator-key-button);
+  color: var(--translator-button);
+  box-shadow: 0 8px 18px var(--translator-shadow);
 }
 
 .tab-name {
@@ -121,6 +121,6 @@ function handleSelect(id: string): void {
 
 .new-tab {
   border-style: dashed;
-  color: var(--translator-accent, #2563eb);
+  color: var(--translator-marker);
 }
 </style>

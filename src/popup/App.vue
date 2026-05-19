@@ -58,23 +58,24 @@ useThemeScheme();
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto 1fr;
-  background: var(--translator-bg, #f8fafc);
+  background: var(--translator-background);
 }
 
 .tab-nav {
   padding: 3px;
-  border: 1px solid #e6ebf2;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgb(15 23 42 / 8%);
+  background: var(--translator-container);
+  box-shadow: 0 8px 24px var(--translator-shadow);
 }
 
 .tab-selector {
   width: 100%;
-  --el-segmented-bg-color: #eef2f7;
-  --el-segmented-item-selected-bg-color: var(--translator-primary, #1f2937);
-  --el-segmented-item-selected-color: #ffffff;
+  --el-segmented-bg-color: var(--translator-button);
+  --el-segmented-item-selected-bg-color: var(--translator-key-button);
+  --el-segmented-item-selected-color: var(--translator-button);
   --el-border-radius-base: 7px;
+  color: var(--translator-text);
 }
 
 .tab-selector :deep(.el-segmented__group) {
@@ -94,9 +95,9 @@ useThemeScheme();
 .page-stage {
   min-height: 0;
   margin-top: 12px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--translator-container);
   overflow: auto;
 }
 

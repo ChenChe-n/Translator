@@ -64,7 +64,7 @@ function formatTokens(tokens: number): string {
   gap: 8px;
   align-items: center;
   font-size: 11px;
-  color: #334155;
+  color: var(--translator-text);
   cursor: pointer;
   transition:
     color 120ms ease,
@@ -73,7 +73,7 @@ function formatTokens(tokens: number): string {
 }
 
 .ranking-item.active {
-  color: #0f172a;
+  color: var(--translator-text);
   font-weight: 700;
 }
 
@@ -82,7 +82,7 @@ function formatTokens(tokens: number): string {
 }
 
 .empty-item {
-  color: #94a3b8;
+  color: var(--translator-muted);
   font-size: 11px;
 }
 
@@ -107,7 +107,7 @@ function formatTokens(tokens: number): string {
 }
 
 .token-value {
-  color: #0f172a;
+  color: var(--translator-text);
   font-weight: 600;
 }
 </style>

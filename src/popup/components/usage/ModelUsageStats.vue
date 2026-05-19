@@ -104,9 +104,9 @@ function handleModelSelect(model: string): void {
   display: grid;
   gap: 12px;
   padding: 12px;
-  border: 1px solid #edf1f5;
+  border: 1px solid var(--translator-border);
   border-radius: 8px;
-  background: #ffffff;
+  background: var(--translator-container);
 }
 
 .stats-head {
@@ -120,14 +120,14 @@ function handleModelSelect(model: string): void {
   margin: 0;
   font-size: 13px;
   font-weight: 600;
-  color: #111827;
+  color: var(--translator-text);
 }
 
 .retention-control {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #64748b;
+  color: var(--translator-muted);
   font-size: 11px;
 }
 
