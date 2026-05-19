@@ -7,14 +7,14 @@
       @remove="handleRemoveConfig"
       @select="handleSelectConfig"
     />
-    <div class="config-shell" :class="{ expanded: configExpanded }">
-      <ApiConfigForm v-if="configExpanded" v-model="config" />
+    <div v-if="configExpanded" class="config-shell">
+      <ApiConfigForm v-model="config" />
       <div class="action-row">
         <ElButton class="action-button" @click="handleSaveConfig">保存</ElButton>
         <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
       </div>
+      <ApiCheckResultList :results="checkResults" />
     </div>
-    <ApiCheckResultList :results="checkResults" />
     <ModelUsageStats
       :usage="modelUsage"
       :settings="usageSettings"
@@ -225,13 +225,12 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
 }
 
 .config-shell {
+  display: grid;
+  gap: 12px;
   padding: 12px;
   border: 1px solid #edf1f5;
   border-radius: 8px;
   background: #ffffff;
-}
-
-.config-shell.expanded {
   box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
 }
 

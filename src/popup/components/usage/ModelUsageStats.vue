@@ -3,7 +3,7 @@
     <div class="stats-head">
       <h2 class="panel-title">模型token使用统计</h2>
       <div class="retention-control">
-        <span>保存</span>
+        <span>保留</span>
         <ElInputNumber
           :model-value="settings.retentionDays"
           size="small"
@@ -16,23 +16,52 @@
       </div>
     </div>
     <section class="chart-row">
-      <UsageBarChart class="chart-main" :items="dailyUsage" />
-      <UsageRanking class="ranking-side" :items="todayRanking" />
+      <UsageBarChart
+        class="chart-main"
+        :items="dailyUsage"
+        :active-model="activeModel"
+        :selected-model="selectedModel"
+        @model-hover="handleModelHover"
+        @model-select="handleModelSelect"
+      />
+      <UsageRanking
+        class="ranking-side"
+        :items="todayRanking"
+        :active-model="activeModel"
+        :selected-model="selectedModel"
+        @model-hover="handleModelHover"
+        @model-select="handleModelSelect"
+      />
     </section>
     <section class="chart-row">
-      <UsagePieChart class="chart-main" :items="totalRanking" />
-      <UsageRanking class="ranking-side" :items="totalRanking" />
+      <UsagePieChart
+        class="chart-main"
+        :items="totalRanking"
+        :active-model="activeModel"
+        :selected-model="selectedModel"
+        @model-hover="handleModelHover"
+        @model-select="handleModelSelect"
+      />
+      <UsageRanking
+        class="ranking-side"
+        :items="totalRanking"
+        :active-model="activeModel"
+        :selected-model="selectedModel"
+        @model-hover="handleModelHover"
+        @model-select="handleModelSelect"
+      />
     </section>
   </section>
 </template>
 
 <script setup lang="ts">
 import { ElInputNumber } from 'element-plus';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import {
   aggregateDailyUsage,
   aggregateModelRanking,
   aggregateTodayRanking,
+  createModelColorMap,
 } from '../../services/modelUsageAggregator';
 import { pruneUsage } from '../../services/modelUsageStorage';
 import type { ModelDailyUsage, UsageStatsSettings } from '../../types/api';
@@ -50,12 +79,23 @@ const emit = defineEmits<{
 }>();
 
 const scopedUsage = computed(() => pruneUsage(props.usage, props.settings.retentionDays));
-const dailyUsage = computed(() => aggregateDailyUsage(scopedUsage.value));
-const todayRanking = computed(() => aggregateTodayRanking(scopedUsage.value));
-const totalRanking = computed(() => aggregateModelRanking(scopedUsage.value));
+const colorMap = computed(() => createModelColorMap(scopedUsage.value));
+const dailyUsage = computed(() => aggregateDailyUsage(scopedUsage.value, colorMap.value));
+const todayRanking = computed(() => aggregateTodayRanking(scopedUsage.value, colorMap.value));
+const totalRanking = computed(() => aggregateModelRanking(scopedUsage.value, colorMap.value));
+const activeModel = ref<string>();
+const selectedModel = ref<string>();
 
 function handleRetentionChange(value: number | undefined): void {
   emit('retentionChange', value ?? 30);
+}
+
+function handleModelHover(model: string | undefined): void {
+  activeModel.value = model;
+}
+
+function handleModelSelect(model: string): void {
+  selectedModel.value = selectedModel.value === model ? undefined : model;
 }
 </script>
 

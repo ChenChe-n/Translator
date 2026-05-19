@@ -93,12 +93,12 @@ async function testImageUnderstanding(config: ApiConfig): Promise<ApiCheckTaskRe
   const imageDataUrl = await loadTestImageDataUrl();
   const content = await requestImage(
     config,
-    '识别图片文字。只输出你看到的文字，按行输出。第三段符号和表情可以忽略。',
+    '识别图片文字。只输出你看到的文字，按行输出。',
     imageDataUrl,
   );
 
   return {
-    passed: hasText(content, 'Test') && hasText(content, '中文文本'),
+    passed: (hasText(content, 'Test') || hasText(content, 'test')) && hasText(content, '中文文本'),
   };
 }
 

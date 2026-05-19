@@ -1,8 +1,22 @@
 <template>
   <ol class="ranking-list">
     <li v-if="visibleItems.length === 0" class="empty-item">暂无数据</li>
-    <li v-for="item in visibleItems" :key="item.model" class="ranking-item">
-      <span class="model-name">{{ item.model }}</span>
+    <li
+      v-for="item in visibleItems"
+      :key="item.model"
+      class="ranking-item"
+      :class="{
+        active: focusedModel === item.model,
+        dimmed: focusedModel && focusedModel !== item.model,
+      }"
+      @mouseenter="$emit('modelHover', item.model)"
+      @mouseleave="$emit('modelHover', undefined)"
+      @click="$emit('modelSelect', item.model)"
+    >
+      <span class="model-cell">
+        <span class="color-mark" :style="{ background: item.color }"></span>
+        <span class="model-name">{{ item.model }}</span>
+      </span>
       <span class="token-value">{{ formatTokens(item.tokens) }}</span>
     </li>
   </ol>
@@ -14,9 +28,17 @@ import type { ModelUsageRankItem } from '../../services/modelUsageAggregator';
 
 const props = defineProps<{
   items: ModelUsageRankItem[];
+  activeModel?: string;
+  selectedModel?: string;
+}>();
+
+defineEmits<{
+  modelHover: [model: string | undefined];
+  modelSelect: [model: string];
 }>();
 
 const visibleItems = computed(() => props.items.slice(0, 8));
+const focusedModel = computed(() => props.activeModel ?? props.selectedModel);
 
 function formatTokens(tokens: number): string {
   if (tokens >= 1000) {
@@ -43,11 +65,39 @@ function formatTokens(tokens: number): string {
   align-items: center;
   font-size: 11px;
   color: #334155;
+  cursor: pointer;
+  transition:
+    color 120ms ease,
+    opacity 120ms ease,
+    font-weight 120ms ease;
+}
+
+.ranking-item.active {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.ranking-item.dimmed {
+  opacity: 0.38;
 }
 
 .empty-item {
   color: #94a3b8;
   font-size: 11px;
+}
+
+.model-cell {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-mark {
+  width: 7px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 2px;
 }
 
 .model-name {

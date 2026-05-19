@@ -7,6 +7,16 @@ export interface ModelUsageRankItem {
   model: string;
   tokens: number;
   percent: number;
+  color: string;
+}
+
+/**
+ * 每日模型图表片段。
+ */
+export interface DailyUsageSegment {
+  model: string;
+  tokens: number;
+  color: string;
 }
 
 /**
@@ -15,7 +25,10 @@ export interface ModelUsageRankItem {
 export interface DailyUsageChartItem {
   date: string;
   totalTokens: number;
+  segments: DailyUsageSegment[];
 }
+
+const colors = ['#2563eb', '#16a34a', '#f59e0b', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#64748b'];
 
 /**
  * 聚合每日总用量。
@@ -23,18 +36,34 @@ export interface DailyUsageChartItem {
  * @param usage 模型每日 token 使用量列表。
  * @returns 每日图表数据。
  */
-export function aggregateDailyUsage(usage: ModelDailyUsage[]): DailyUsageChartItem[] {
-  const map = new Map<string, number>();
+export function aggregateDailyUsage(
+  usage: ModelDailyUsage[],
+  colorMap = createModelColorMap(usage),
+): DailyUsageChartItem[] {
+  const dayMap = new Map<string, Map<string, number>>();
 
   for (const item of usage) {
-    map.set(item.date, (map.get(item.date) ?? 0) + getTotalTokens(item));
+    const modelMap = dayMap.get(item.date) ?? new Map<string, number>();
+    modelMap.set(item.model, (modelMap.get(item.model) ?? 0) + getTotalTokens(item));
+    dayMap.set(item.date, modelMap);
   }
 
-  return [...map.entries()]
-    .map(([date, totalTokens]) => ({
-      date,
-      totalTokens,
-    }))
+  return [...dayMap.entries()]
+    .map(([date, modelMap]) => {
+      const segments = [...modelMap.entries()]
+        .map(([model, tokens]) => ({
+          model,
+          tokens,
+          color: getModelColor(model, colorMap),
+        }))
+        .sort((left, right) => right.tokens - left.tokens);
+
+      return {
+        date,
+        segments,
+        totalTokens: segments.reduce((sum, item) => sum + item.tokens, 0),
+      };
+    })
     .sort((left, right) => left.date.localeCompare(right.date));
 }
 
@@ -44,9 +73,15 @@ export function aggregateDailyUsage(usage: ModelDailyUsage[]): DailyUsageChartIt
  * @param usage 模型每日 token 使用量列表。
  * @returns 当天模型排行。
  */
-export function aggregateTodayRanking(usage: ModelDailyUsage[]): ModelUsageRankItem[] {
+export function aggregateTodayRanking(
+  usage: ModelDailyUsage[],
+  colorMap = createModelColorMap(usage),
+): ModelUsageRankItem[] {
   const today = formatLocalDate(new Date());
-  return aggregateModelRanking(usage.filter((item) => item.date === today));
+  return aggregateModelRanking(
+    usage.filter((item) => item.date === today),
+    colorMap,
+  );
 }
 
 /**
@@ -55,7 +90,10 @@ export function aggregateTodayRanking(usage: ModelDailyUsage[]): ModelUsageRankI
  * @param usage 模型每日 token 使用量列表。
  * @returns 全部模型排行。
  */
-export function aggregateModelRanking(usage: ModelDailyUsage[]): ModelUsageRankItem[] {
+export function aggregateModelRanking(
+  usage: ModelDailyUsage[],
+  colorMap = createModelColorMap(usage),
+): ModelUsageRankItem[] {
   const map = new Map<string, number>();
 
   for (const item of usage) {
@@ -67,9 +105,19 @@ export function aggregateModelRanking(usage: ModelDailyUsage[]): ModelUsageRankI
     .map(([model, tokens]) => ({
       model,
       tokens,
+      color: getModelColor(model, colorMap),
       percent: total > 0 ? Math.round((tokens / total) * 1000) / 10 : 0,
     }))
     .sort((left, right) => right.tokens - left.tokens);
+}
+
+export function createModelColorMap(usage: ModelDailyUsage[]): Map<string, string> {
+  const models = [...new Set(usage.map((item) => item.model))].sort();
+  return new Map(models.map((model, index) => [model, colors[index % colors.length]]));
+}
+
+function getModelColor(model: string, colorMap: ReadonlyMap<string, string>): string {
+  return colorMap.get(model) ?? colors[0];
 }
 
 function getTotalTokens(item: ModelDailyUsage): number {
