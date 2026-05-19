@@ -38,6 +38,8 @@
   "translationMode.enableCache": "Enable cache",
   "api.addConfig": "Add API config",
   "api.configFallback": "Config {index}",
+  "api.models.title": "Models",
+  "api.models.description": "Choose a model config. Click the active model to expand or collapse its settings.",
   "api.form.name": "Name",
   "api.form.namePlaceholder": "Use model name by default",
   "api.form.url": "URL",

@@ -22,6 +22,8 @@
     <TranslationModeTabs
       v-model:active-mode="activeTranslationMode"
       :config-map="translationModeConfigMap"
+      :expanded="translationModeExpanded"
+      @select="handleSelectTranslationMode"
       @update="handleTranslationModeUpdate"
     />
     <section class="language-panel" :aria-label="t('language.label')">
@@ -65,6 +67,7 @@ import type { ThemeColors } from '../types/theme';
 const { state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, setLocale, t } = useI18n();
 const schemeExpanded = ref(false);
+const translationModeExpanded = ref(false);
 const activeTranslationMode = ref<TranslationModeKey>('normal');
 const translationModeConfigMap = reactive<TranslationModeConfigMap>(createDefaultTranslationModeConfigMap());
 
@@ -121,6 +124,16 @@ async function handleColorUpdate(colors: ThemeColors): Promise<void> {
 
 async function handleLocaleChange(value: LocaleCode): Promise<void> {
   await setLocale(value);
+}
+
+function handleSelectTranslationMode(mode: TranslationModeKey): void {
+  if (activeTranslationMode.value === mode) {
+    translationModeExpanded.value = !translationModeExpanded.value;
+    return;
+  }
+
+  activeTranslationMode.value = mode;
+  translationModeExpanded.value = true;
 }
 
 async function handleTranslationModeUpdate(configMap: TranslationModeConfigMap): Promise<void> {

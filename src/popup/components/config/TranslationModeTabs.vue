@@ -1,9 +1,20 @@
 <template>
-  <section class="mode-panel" :aria-label="t('translationMode.title')">
+  <section class="mode-block" :aria-label="t('translationMode.title')">
     <h2 class="panel-title">{{ t('translationMode.title') }}</h2>
     <p class="panel-description">{{ t('translationMode.description') }}</p>
-    <ElSegmented v-model="activeMode" class="mode-tabs" :options="modeOptions" />
-    <section class="mode-form">
+    <div class="mode-tabs">
+      <button
+        v-for="option in modeOptions"
+        :key="option.value"
+        class="mode-tab"
+        :class="{ active: option.value === activeMode }"
+        type="button"
+        @click="$emit('select', option.value)"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+    <section v-if="expanded" class="mode-form">
       <ElForm label-position="top">
         <ElFormItem :label="t('translationMode.cachePath')">
           <ElInput
@@ -52,16 +63,18 @@
 </template>
 
 <script setup lang="ts">
-import { ElCheckbox, ElForm, ElFormItem, ElInput, ElInputNumber, ElSegmented } from 'element-plus';
+import { ElCheckbox, ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus';
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import type { TranslationModeConfigMap, TranslationModeKey } from '../../types/translationMode';
 
 const props = defineProps<{
   configMap: TranslationModeConfigMap;
+  expanded: boolean;
 }>();
 
 const emit = defineEmits<{
+  select: [mode: TranslationModeKey];
   update: [configMap: TranslationModeConfigMap];
 }>();
 
@@ -131,23 +144,43 @@ function updateActiveConfig(config: Partial<TranslationModeConfigMap[Translation
 </script>
 
 <style scoped>
-.mode-panel {
+.mode-block {
   display: grid;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--translator-border);
-  border-radius: 8px;
-  background: var(--translator-container);
-  box-shadow: 0 8px 20px var(--translator-shadow);
+  gap: 8px;
 }
 
 .mode-tabs {
-  width: 100%;
-  --el-segmented-bg-color: var(--translator-button);
-  --el-segmented-item-selected-bg-color: var(--translator-key-button);
-  --el-segmented-item-selected-color: var(--translator-button);
-  --el-border-radius-base: 7px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.mode-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.mode-tab {
+  height: 32px;
+  flex: 1 0 0;
+  min-width: 86px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 10px;
+  border: 1px solid var(--translator-border);
+  border-radius: 8px;
+  background: var(--translator-button);
   color: var(--translator-text);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mode-tab.active {
+  border-color: var(--translator-key-button);
+  background: var(--translator-key-button);
+  color: var(--translator-button);
+  box-shadow: 0 8px 18px var(--translator-shadow);
 }
 
 .panel-title {
@@ -164,18 +197,14 @@ function updateActiveConfig(config: Partial<TranslationModeConfigMap[Translation
   line-height: 1.5;
 }
 
-.mode-tabs :deep(.el-segmented__group) {
-  width: 100%;
-}
-
-.mode-tabs :deep(.el-segmented__item) {
-  flex: 1;
-  min-width: 0;
-  height: 32px;
-}
-
-.mode-tabs :deep(.el-segmented__item-label) {
-  line-height: 32px;
+.mode-form {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--translator-border);
+  border-radius: 8px;
+  background: var(--translator-container);
+  box-shadow: 0 8px 20px var(--translator-shadow);
 }
 
 .mode-form :deep(.el-form-item) {

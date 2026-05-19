@@ -1,12 +1,16 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.api')">
-    <ApiConfigTabs
-      :configs="configState.configs"
-      :active-config-id="configState.activeConfigId"
-      @create="handleCreateConfig"
-      @remove="handleRemoveConfig"
-      @select="handleSelectConfig"
-    />
+    <section class="config-block">
+      <h2 class="block-title">{{ t('api.models.title') }}</h2>
+      <p class="block-description">{{ t('api.models.description') }}</p>
+      <ApiConfigTabs
+        :configs="configState.configs"
+        :active-config-id="configState.activeConfigId"
+        @create="handleCreateConfig"
+        @remove="handleRemoveConfig"
+        @select="handleSelectConfig"
+      />
+    </section>
     <div v-if="configExpanded" class="config-shell">
       <ApiConfigForm v-model="config" />
       <div class="action-row">
@@ -259,6 +263,25 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
   gap: 12px;
   padding: 12px;
   background: var(--translator-background);
+}
+
+.config-block {
+  display: grid;
+  gap: 8px;
+}
+
+.block-title {
+  margin: 0;
+  color: var(--translator-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.block-description {
+  margin: -2px 0 0;
+  color: var(--translator-muted);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .config-shell {

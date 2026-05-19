@@ -38,6 +38,8 @@
   "translationMode.enableCache": "启用缓存",
   "api.addConfig": "新增 API 配置",
   "api.configFallback": "配置{index}",
+  "api.models.title": "模型",
+  "api.models.description": "选择模型配置，点击当前模型可展开或收起详细设置。",
   "api.form.name": "名称",
   "api.form.namePlaceholder": "默认使用模型名",
   "api.form.url": "URL",
