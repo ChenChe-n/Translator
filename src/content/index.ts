@@ -1,4 +1,7 @@
 import { CURRENT_PAGE_PORT_NAME, type ExtensionMessage } from '../shared/messages';
+import { createTextParseController } from './textParseController';
+
+createTextParseController().start();
 
 /**
  * 处理来自插件弹窗的页面实时连接。

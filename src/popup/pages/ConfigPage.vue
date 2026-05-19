@@ -71,7 +71,9 @@ import {
 } from '../services/translationModeStorage';
 import {
   createDefaultTextParseModeConfigMap,
+  loadActiveTextParseMode,
   loadTextParseModeConfigMap,
+  saveActiveTextParseMode,
   saveTextParseModeConfigMap,
 } from '../services/textParseModeStorage';
 import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textParseMode';
@@ -102,6 +104,7 @@ onMounted(async () => {
 
   Object.assign(translationModeConfigMap, translationModeConfig);
   Object.assign(textParseModeConfigMap, textParseModeConfig);
+  activeTextParseMode.value = await loadActiveTextParseMode();
 });
 
 async function handleCreateScheme(): Promise<void> {
@@ -172,6 +175,7 @@ function handleSelectTextParseMode(mode: TextParseModeKey): void {
 
   activeTextParseMode.value = mode;
   textParseModeExpanded.value = true;
+  void saveActiveTextParseMode(mode);
 }
 
 async function handleTextParseModeUpdate(configMap: TextParseModeConfigMap): Promise<void> {

@@ -1,0 +1,43 @@
+import type { TextParseModeConfig, TextParseModeConfigMap, TextParseModeKey } from '../popup/types/textParseMode';
+
+/**
+ * 可标记文本宿主元素。
+ */
+export type TextReferenceOwner = HTMLElement | SVGElement;
+
+/**
+ * 已解析文本引用。
+ */
+export type ParsedTextReference = ParsedTextNodeReference | ParsedTextAttributeReference;
+
+/**
+ * 已解析文本节点引用。
+ */
+export interface ParsedTextNodeReference {
+  id: string;
+  kind: 'text';
+  node: Text;
+  owner: TextReferenceOwner;
+  text: string;
+}
+
+/**
+ * 已解析文本属性引用。
+ */
+export interface ParsedTextAttributeReference {
+  id: string;
+  kind: 'attribute';
+  attributeName: string;
+  owner: TextReferenceOwner;
+  text: string;
+}
+
+/**
+ * 文本解析运行状态。
+ */
+export interface TextParseRuntimeConfig {
+  activeMode: TextParseModeKey;
+  activeConfig: TextParseModeConfig;
+  configMap: TextParseModeConfigMap;
+  markerColor: string;
+}

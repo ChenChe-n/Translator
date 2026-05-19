@@ -43,6 +43,7 @@
   "textParseMode.structured": "Structured parsing",
   "textParseMode.autoParseDelay": "Auto parse delay",
   "textParseMode.ms": "ms",
+  "textParseMode.showTextMarker": "Show text marker",
   "textParseMode.preserveId": "Preserve id tags",
   "textParseMode.preserveClass": "Preserve class tags",
   "textParseMode.preserveStyle": "Preserve style tags",

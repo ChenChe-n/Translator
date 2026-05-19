@@ -43,6 +43,7 @@
   "textParseMode.structured": "结构化解析",
   "textParseMode.autoParseDelay": "自动解析延迟",
   "textParseMode.ms": "ms",
+  "textParseMode.showTextMarker": "文本标记显示",
   "textParseMode.preserveId": "保留 id 标签",
   "textParseMode.preserveClass": "保留 class 标签",
   "textParseMode.preserveStyle": "保留 style 标签",

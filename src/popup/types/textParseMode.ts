@@ -11,6 +11,7 @@ export interface TextParseModeOptions {
   preserveClass: boolean;
   preserveStyle: boolean;
   preserveUrl: boolean;
+  showTextMarker: boolean;
 }
 
 /**

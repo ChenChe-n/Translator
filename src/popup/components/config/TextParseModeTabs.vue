@@ -20,7 +20,7 @@
           <div class="delay-control">
             <ElInputNumber
               :model-value="activeConfig.autoParseDelayMs"
-              :min="0"
+              :min="100"
               :max="60000"
               :step="100"
               controls-position="right"
@@ -29,6 +29,9 @@
             <span class="delay-unit">{{ t('textParseMode.ms') }}</span>
           </div>
         </ElFormItem>
+        <ElCheckbox :model-value="activeConfig.options.showTextMarker" @change="handleShowTextMarkerUpdate">
+          {{ t('textParseMode.showTextMarker') }}
+        </ElCheckbox>
         <div v-if="activeMode === 'structured'" class="option-row">
           <ElCheckbox :model-value="activeConfig.options.preserveId" @change="handlePreserveIdUpdate">
             {{ t('textParseMode.preserveId') }}
@@ -83,8 +86,12 @@ const modeOptions = computed(() =>
 
 function handleDelayUpdate(value: number | undefined): void {
   updateActiveConfig({
-    autoParseDelayMs: value ?? 500,
+    autoParseDelayMs: Math.max(value ?? 500, 100),
   });
+}
+
+function handleShowTextMarkerUpdate(value: string | number | boolean): void {
+  updateStructuredOptions('showTextMarker', Boolean(value));
 }
 
 function handlePreserveIdUpdate(value: string | number | boolean): void {
