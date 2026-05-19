@@ -2,27 +2,20 @@ import { applyTextMarkers, clearTextMarkers } from './textMarker';
 import { scanTextReferences } from './textNodeScanner';
 import { loadTextParseRuntimeConfig } from './textParseConfig';
 import type { ParsedTextReference, TextParseRuntimeConfig, TextReferenceOwner } from './textParseTypes';
+import {
+  createTextOverwriteState,
+  overwriteTextReferences,
+  restoreOverwrittenReferences,
+  writeTextReference,
+} from './textWriter';
 import { appendTextParseMetric } from '../popup/services/textParseMetricsStorage';
+import { translateNormalMode } from '../popup/services/normalTranslationService';
 
 const minimumDelayMs = 100;
 
-interface OverwrittenTextNodeState {
-  lastText: string;
-  originalText: string;
-}
-
-interface OverwrittenAttributeState {
-  attributeName: string;
-  hadAttribute: boolean;
-  lastText: string;
-  originalText: string;
-}
-
-interface TextOverwriteState {
-  attributes: WeakMap<TextReferenceOwner, Map<string, OverwrittenAttributeState>>;
-  attributeOwners: Set<TextReferenceOwner>;
-  textNodes: WeakMap<Text, OverwrittenTextNodeState>;
-  textNodeRefs: Set<Text>;
+interface TranslationTracker {
+  attributes: WeakMap<TextReferenceOwner, Set<string>>;
+  textNodes: WeakSet<Text>;
 }
 
 /**
@@ -32,12 +25,9 @@ interface TextOverwriteState {
  */
 export function createTextParseController(): { start: () => void } {
   const references = new Map<string, ParsedTextReference>();
-  const overwriteState: TextOverwriteState = {
-    attributes: new WeakMap<TextReferenceOwner, Map<string, OverwrittenAttributeState>>(),
-    attributeOwners: new Set<TextReferenceOwner>(),
-    textNodes: new WeakMap<Text, OverwrittenTextNodeState>(),
-    textNodeRefs: new Set<Text>(),
-  };
+  const testOverwriteState = createTextOverwriteState();
+  const translationOverwriteState = createTextOverwriteState();
+  let translatedReferences = createTranslationTracker();
   let config: TextParseRuntimeConfig | undefined;
   let scanTimer: number | undefined;
   let scanning = false;
@@ -69,7 +59,9 @@ export function createTextParseController(): { start: () => void } {
     if (!config.runtimeSettings.parseEnabled) {
       window.clearTimeout(scanTimer);
       clearTextMarkers();
-      restoreOverwrittenReferences(overwriteState);
+      restoreOverwrittenReferences(testOverwriteState);
+      restoreOverwrittenReferences(translationOverwriteState);
+      translatedReferences = createTranslationTracker();
       return;
     }
 
@@ -96,9 +88,12 @@ export function createTextParseController(): { start: () => void } {
       }
 
       if (config.activeConfig.options.overwriteWithTestText) {
-        overwriteTextReferences([...references.values()], config.activeConfig.options.testText, overwriteState);
+        restoreOverwrittenReferences(translationOverwriteState);
+        translatedReferences = createTranslationTracker();
+        overwriteTextReferences([...references.values()], config.activeConfig.options.testText, testOverwriteState);
       } else {
-        restoreOverwrittenReferences(overwriteState);
+        restoreOverwrittenReferences(testOverwriteState);
+        translateReferences([...references.values()], config, translatedReferences, translationOverwriteState);
       }
 
       await appendTextParseMetric({
@@ -120,6 +115,11 @@ export function createTextParseController(): { start: () => void } {
 
     config = await loadTextParseRuntimeConfig();
 
+    if (shouldResetTranslations(changes)) {
+      restoreOverwrittenReferences(translationOverwriteState);
+      translatedReferences = createTranslationTracker();
+    }
+
     if (config.runtimeSettings.updateScope === 'foreground' && document.visibilityState !== 'visible') {
       clearTextMarkers();
       return;
@@ -135,157 +135,111 @@ export function createTextParseController(): { start: () => void } {
   };
 }
 
-function overwriteTextReferences(references: ParsedTextReference[], text: string, state: TextOverwriteState): void {
-  references.forEach((reference) => {
-    if (!reference.owner.isConnected) {
-      return;
-    }
-
-    if (reference.kind === 'text' && reference.node.isConnected) {
-      overwriteTextNode(reference.node, text, state);
-      return;
-    }
-
-    if (reference.kind === 'attribute') {
-      overwriteAttribute(reference.owner, reference.attributeName, text, state);
-    }
-  });
-}
-
-function overwriteTextNode(node: Text, text: string, overwriteState: TextOverwriteState): void {
-  const state = overwriteState.textNodes.get(node);
-  const currentText = node.nodeValue ?? '';
-
-  if (!state) {
-    overwriteState.textNodes.set(node, {
-      originalText: currentText,
-      lastText: text,
-    });
-    overwriteState.textNodeRefs.add(node);
-  } else {
-    if (currentText !== state.lastText) {
-      state.originalText = currentText;
-    }
-
-    state.lastText = text;
-  }
-
-  if (currentText !== text) {
-    node.nodeValue = text;
-  }
-}
-
-function overwriteAttribute(
-  owner: TextReferenceOwner,
-  attributeName: string,
-  text: string,
-  overwriteState: TextOverwriteState,
-): void {
-  const stateMap = getAttributeStateMap(owner, overwriteState);
-  const attributeState = stateMap.get(attributeName);
-  const hadAttribute = owner.hasAttribute(attributeName);
-  const currentText = owner.getAttribute(attributeName) ?? '';
-
-  if (!attributeState) {
-    stateMap.set(attributeName, {
-      attributeName,
-      hadAttribute,
-      originalText: currentText,
-      lastText: text,
-    });
-  } else {
-    if (currentText !== attributeState.lastText) {
-      attributeState.hadAttribute = hadAttribute;
-      attributeState.originalText = currentText;
-    }
-
-    attributeState.lastText = text;
-  }
-
-  if (currentText !== text) {
-    owner.setAttribute(attributeName, text);
-  }
-}
-
-function getAttributeStateMap(
-  owner: TextReferenceOwner,
-  state: TextOverwriteState,
-): Map<string, OverwrittenAttributeState> {
-  const stateMap = state.attributes.get(owner) ?? new Map<string, OverwrittenAttributeState>();
-  state.attributes.set(owner, stateMap);
-  state.attributeOwners.add(owner);
-  return stateMap;
-}
-
-function restoreOverwrittenReferences(state: TextOverwriteState): void {
-  state.textNodeRefs.forEach((node) => restoreTextNode(node, state));
-  state.attributeOwners.forEach((owner) => restoreOwnerAttributes(owner, state));
-}
-
-function restoreTextNode(node: Text, overwriteState: TextOverwriteState): void {
-  const state = overwriteState.textNodes.get(node);
-
-  if (!state || !node.isConnected) {
-    overwriteState.textNodes.delete(node);
-    overwriteState.textNodeRefs.delete(node);
-    return;
-  }
-
-  if (node.nodeValue !== state.lastText) {
-    overwriteState.textNodes.delete(node);
-    overwriteState.textNodeRefs.delete(node);
-    return;
-  }
-
-  node.nodeValue = state.originalText;
-  overwriteState.textNodes.delete(node);
-  overwriteState.textNodeRefs.delete(node);
-}
-
-function restoreOwnerAttributes(owner: TextReferenceOwner, state: TextOverwriteState): void {
-  const stateMap = state.attributes.get(owner);
-
-  if (!stateMap || !owner.isConnected) {
-    state.attributes.delete(owner);
-    state.attributeOwners.delete(owner);
-    return;
-  }
-
-  stateMap.forEach((item) => restoreAttribute(owner, item.attributeName, state));
-
-  if (stateMap.size === 0) {
-    state.attributes.delete(owner);
-    state.attributeOwners.delete(owner);
-  }
-}
-
-function restoreAttribute(owner: TextReferenceOwner, attributeName: string, overwriteState: TextOverwriteState): void {
-  const stateMap = overwriteState.attributes.get(owner);
-  const attributeState = stateMap?.get(attributeName);
-
-  if (!attributeState) {
-    return;
-  }
-
-  if (owner.getAttribute(attributeName) !== attributeState.lastText) {
-    stateMap?.delete(attributeName);
-    return;
-  }
-
-  if (attributeState.hadAttribute) {
-    owner.setAttribute(attributeName, attributeState.originalText);
-  } else {
-    owner.removeAttribute(attributeName);
-  }
-
-  stateMap?.delete(attributeName);
-}
-
 function shouldReloadConfig(changes: Record<string, chrome.storage.StorageChange>): boolean {
   return Object.keys(changes).some(
     (key) =>
       key.startsWith('Translator.textParseMode.') ||
+      key.startsWith('Translator.translationMode.') ||
       key === 'Translator.themeSchemeState' ||
+      key === 'Translator.apiConfigState' ||
+      key === 'Translator.locale' ||
       key === 'Translator.runtimeSettings',
   );
+}
+
+function shouldResetTranslations(changes: Record<string, chrome.storage.StorageChange>): boolean {
+  return Object.keys(changes).some(
+    (key) =>
+      key.startsWith('Translator.textParseMode.') ||
+      key.startsWith('Translator.translationMode.') ||
+      key === 'Translator.apiConfigState' ||
+      key === 'Translator.locale' ||
+      key === 'Translator.runtimeSettings',
+  );
+}
+
+function translateReferences(
+  items: ParsedTextReference[],
+  runtimeConfig: TextParseRuntimeConfig,
+  translatedReferences: TranslationTracker,
+  overwriteState: ReturnType<typeof createTextOverwriteState>,
+): void {
+  if (!runtimeConfig.runtimeSettings.translationEnabled || !isApiConfigReady(runtimeConfig)) {
+    restoreOverwrittenReferences(overwriteState);
+    return;
+  }
+
+  items.forEach((reference) => {
+    if (hasTranslated(reference, translatedReferences)) {
+      return;
+    }
+
+    markTranslated(reference, translatedReferences);
+    void translateAndWrite(reference, runtimeConfig, translatedReferences, overwriteState);
+  });
+}
+
+async function translateAndWrite(
+  reference: ParsedTextReference,
+  runtimeConfig: TextParseRuntimeConfig,
+  translatedReferences: TranslationTracker,
+  overwriteState: ReturnType<typeof createTextOverwriteState>,
+): Promise<void> {
+  try {
+    const result = await translateNormalMode(
+      runtimeConfig.apiConfig,
+      runtimeConfig.translationConfig,
+      { text: reference.text },
+      runtimeConfig.targetLanguage,
+    );
+
+    if (result.text && isReferenceConnected(reference)) {
+      writeTextReference(reference, result.text, overwriteState);
+    }
+  } catch {
+    unmarkTranslated(reference, translatedReferences);
+  }
+}
+
+function isReferenceConnected(reference: ParsedTextReference): boolean {
+  return reference.owner.isConnected && (reference.kind === 'attribute' || reference.node.isConnected);
+}
+
+function isApiConfigReady(runtimeConfig: TextParseRuntimeConfig): boolean {
+  return Boolean(runtimeConfig.apiConfig.baseUrl && runtimeConfig.apiConfig.apiKey && runtimeConfig.apiConfig.model);
+}
+
+function createTranslationTracker(): TranslationTracker {
+  return {
+    attributes: new WeakMap<TextReferenceOwner, Set<string>>(),
+    textNodes: new WeakSet<Text>(),
+  };
+}
+
+function hasTranslated(reference: ParsedTextReference, tracker: TranslationTracker): boolean {
+  if (reference.kind === 'text') {
+    return tracker.textNodes.has(reference.node);
+  }
+
+  return tracker.attributes.get(reference.owner)?.has(reference.attributeName) ?? false;
+}
+
+function markTranslated(reference: ParsedTextReference, tracker: TranslationTracker): void {
+  if (reference.kind === 'text') {
+    tracker.textNodes.add(reference.node);
+    return;
+  }
+
+  const attributes = tracker.attributes.get(reference.owner) ?? new Set<string>();
+  attributes.add(reference.attributeName);
+  tracker.attributes.set(reference.owner, attributes);
+}
+
+function unmarkTranslated(reference: ParsedTextReference, tracker: TranslationTracker): void {
+  if (reference.kind === 'text') {
+    tracker.textNodes.delete(reference.node);
+    return;
+  }
+
+  tracker.attributes.get(reference.owner)?.delete(reference.attributeName);
 }

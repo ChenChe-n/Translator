@@ -1,4 +1,6 @@
 import type { ApiConfig } from '../types/api';
+import type { ModelCallLog } from '../types/modelCall';
+import { createRequestLog, failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
 
 interface ChatResponse {
@@ -14,7 +16,12 @@ interface ChatResponse {
 }
 
 export interface StreamTextOptions {
-  onContent?: (content: string) => void;
+  onContent?: (content: string) => void | Promise<void>;
+}
+
+export interface LoggedChatResponse {
+  callLog: ModelCallLog;
+  response: Response;
 }
 
 const JSON_HEADERS = {
@@ -30,16 +37,16 @@ const JSON_HEADERS = {
  */
 export async function requestText(config: ApiConfig, prompt: string): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
-  const response = await requestChat(config, {
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
+  const body = createTextBody(prompt);
+  const callLog = await createRequestLog(config, body);
 
-  return readAndRecordChatContent(config, response, inputTokens);
+  try {
+    const response = await requestChat(config, body);
+    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+  } catch (error) {
+    await failRequestLog(callLog, error);
+    throw error;
+  }
 }
 
 /**
@@ -51,19 +58,21 @@ export async function requestText(config: ApiConfig, prompt: string): Promise<st
  */
 export async function requestJson(config: ApiConfig, prompt: string): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
-  const response = await requestChat(config, {
+  const body = {
     response_format: {
       type: 'json_object',
     },
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
+    ...createTextBody(prompt),
+  };
+  const callLog = await createRequestLog(config, body);
 
-  return readAndRecordChatContent(config, response, inputTokens);
+  try {
+    const response = await requestChat(config, body);
+    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+  } catch (error) {
+    await failRequestLog(callLog, error);
+    throw error;
+  }
 }
 
 /**
@@ -76,7 +85,7 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
  */
 export async function requestImage(config: ApiConfig, prompt: string, imageUrl: string): Promise<string> {
   const inputTokens = estimateTokenCount(prompt) + estimateImageInputTokens(imageUrl);
-  const response = await requestChat(config, {
+  const body = {
     messages: [
       {
         role: 'user',
@@ -94,9 +103,16 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
         ],
       },
     ],
-  });
+  };
+  const callLog = await createRequestLog(config, body);
 
-  return readAndRecordChatContent(config, response, inputTokens);
+  try {
+    const response = await requestChat(config, body);
+    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+  } catch (error) {
+    await failRequestLog(callLog, error);
+    throw error;
+  }
 }
 
 /**
@@ -108,19 +124,25 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
  */
 export async function requestStream(config: ApiConfig, prompt: string, options: StreamTextOptions = {}): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
-  const response = await requestChat(config, {
+  const body = {
     stream: true,
-    messages: [
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-  });
+    ...createTextBody(prompt),
+  };
+  const callLog = await createRequestLog(config, body);
 
-  const content = await readStreamContent(response, options.onContent);
-  await recordUsage(config, inputTokens, content);
-  return content;
+  try {
+    const response = await requestChat(config, body);
+    const content = await readStreamContent(response, async (nextContent) => {
+      options.onContent?.(nextContent);
+      await updateRequestOutput(callLog, nextContent);
+    });
+    await updateRequestOutput(callLog, content, true);
+    await recordUsage(config, inputTokens, content);
+    return content;
+  } catch (error) {
+    await failRequestLog(callLog, error);
+    throw error;
+  }
 }
 
 async function requestChat(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
@@ -150,22 +172,37 @@ async function requestChat(config: ApiConfig, body: Record<string, unknown>): Pr
  * @param body 请求体。
  * @returns API 响应。
  */
-export async function requestChatResponse(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
-  return requestChat(config, body);
+export async function requestChatResponse(config: ApiConfig, body: Record<string, unknown>): Promise<LoggedChatResponse> {
+  const callLog = await createRequestLog(config, body);
+
+  try {
+    return {
+      callLog,
+      response: await requestChat(config, body),
+    };
+  } catch (error) {
+    await failRequestLog(callLog, error);
+    throw error;
+  }
 }
 
 async function readAndRecordChatContent(
   config: ApiConfig,
   response: Response,
   inputTokens: number,
+  callLog: ModelCallLog,
 ): Promise<string> {
   const data = (await response.json()) as ChatResponse;
   const content = data.choices?.[0]?.message?.content ?? '';
+  await updateRequestOutput(callLog, content, true);
   await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
   return content;
 }
 
-async function readStreamContent(response: Response, onContent?: (content: string) => void): Promise<string> {
+async function readStreamContent(
+  response: Response,
+  onContent?: (content: string) => void | Promise<void>,
+): Promise<string> {
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   let content = '';
@@ -187,7 +224,7 @@ async function readStreamContent(response: Response, onContent?: (content: strin
     buffer = parsed.rest;
     content += parsed.content;
     if (parsed.content) {
-      onContent?.(parsed.content);
+      await onContent?.(content);
     }
   }
 
@@ -195,7 +232,7 @@ async function readStreamContent(response: Response, onContent?: (content: strin
   const parsed = parseStreamBuffer(`${buffer}\n`);
   content += parsed.content;
   if (parsed.content) {
-    onContent?.(parsed.content);
+    await onContent?.(content);
   }
   return content;
 }
@@ -242,6 +279,17 @@ function readStreamDelta(payload: string): string {
   } catch {
     return '';
   }
+}
+
+function createTextBody(prompt: string): Record<string, unknown> {
+  return {
+    messages: [
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ],
+  };
 }
 
 async function readErrorText(response: Response): Promise<string> {

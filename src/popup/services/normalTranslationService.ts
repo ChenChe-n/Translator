@@ -1,5 +1,6 @@
 import type { ApiConfig } from '../types/api';
 import type { TranslationModeConfig } from '../types/translationMode';
+import { failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
@@ -102,22 +103,38 @@ async function flushQueue(): Promise<void> {
   const idSet = new Set(batch.map((item) => item.id));
   const results = new Map<string, string | null>();
 
-  try {
-    const response = await requestChatResponse(currentApiConfig, buildRequestBody(currentConfig, batch));
+  let callLog: Awaited<ReturnType<typeof requestChatResponse>>['callLog'] | undefined;
 
-    if (isStreamResponse(response)) {
-      await readJsonlStream(response, idSet, (tid, text) => {
+  try {
+    const responseInfo = await requestChatResponse(currentApiConfig, buildRequestBody(currentConfig, batch));
+    callLog = responseInfo.callLog;
+    const activeCallLog = responseInfo.callLog;
+
+    if (isStreamResponse(responseInfo.response)) {
+      let streamOutput = '';
+      await readJsonlStream(responseInfo.response, idSet, (tid, text) => {
         if (!results.has(tid)) {
           results.set(tid, text);
           resolveMatched(batch, tid, text);
         }
+      }, async (content) => {
+        streamOutput += content;
+        await updateRequestOutput(activeCallLog, streamOutput);
       });
+      await updateRequestOutput(activeCallLog, streamOutput, true);
     } else {
-      parseChatJsonlResults(await response.json(), idSet).forEach((text, tid) => results.set(tid, text));
+      const responseData = await responseInfo.response.json();
+      const content = readChatContent(responseData);
+      await updateRequestOutput(activeCallLog, content, true);
+      parseChatJsonlResults(responseData, idSet).forEach((text, tid) => results.set(tid, text));
     }
 
     batch.forEach((item) => item.resolve({ tid: item.id, text: results.get(item.id) ?? null }));
   } catch (error) {
+    if (callLog) {
+      await failRequestLog(callLog, error);
+    }
+
     batch.forEach((item) => item.reject(error));
   }
 }
@@ -170,6 +187,7 @@ async function readJsonlStream(
   response: Response,
   idSet: Set<string>,
   onResult: (tid: string, text: string | null) => void,
+  onContent: (content: string) => void | Promise<void>,
 ): Promise<void> {
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
@@ -190,10 +208,16 @@ async function readJsonlStream(
     eventBuffer += decoder.decode(value, { stream: true });
     const parsed = readSseContent(eventBuffer);
     eventBuffer = parsed.rest;
+    if (parsed.content) {
+      await onContent(parsed.content);
+    }
     jsonlBuffer = parseJsonlLines(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
   }
 
   const parsed = readSseContent(`${eventBuffer}${decoder.decode()}\n\n`);
+  if (parsed.content) {
+    await onContent(parsed.content);
+  }
   parseJsonlLines(`${jsonlBuffer}${parsed.content}\n`, idSet, onResult);
 }
 
@@ -211,4 +235,16 @@ function estimateBatchTokens(items: PendingItem[]): number {
 
 function estimateTextTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
+}
+
+function readChatContent(data: unknown): string {
+  const response = data as {
+    choices?: Array<{
+      message?: {
+        content?: string;
+      };
+    }>;
+  };
+
+  return response.choices?.[0]?.message?.content ?? '';
 }

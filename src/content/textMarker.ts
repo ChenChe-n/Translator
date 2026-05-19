@@ -1,7 +1,6 @@
 import type { ParsedTextReference, TextReferenceOwner } from './textParseTypes';
 
 interface MarkedElementState {
-  markerColor: string;
   previousColor: string;
 }
 
@@ -14,7 +13,7 @@ const markedElements = new Map<TextReferenceOwner, MarkedElementState>();
  */
 export function clearTextMarkers(): void {
   markedElements.forEach((state, element) => {
-    if (element.isConnected && element.style.color === state.markerColor) {
+    if (element.isConnected) {
       element.style.color = state.previousColor;
     }
   });
@@ -38,7 +37,6 @@ export function applyTextMarkers(references: ParsedTextReference[], color: strin
 
     if (!markedElements.has(reference.owner)) {
       markedElements.set(reference.owner, {
-        markerColor: color,
         previousColor: reference.owner.style.color,
       });
     }
