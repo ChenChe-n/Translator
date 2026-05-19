@@ -1,4 +1,5 @@
 import type { TextParseModeConfig, TextParseModeConfigMap, TextParseModeKey } from '../popup/types/textParseMode';
+import type { RuntimeSettings } from '../popup/types/runtimeSettings';
 
 /**
  * 可标记文本宿主元素。
@@ -40,4 +41,5 @@ export interface TextParseRuntimeConfig {
   activeConfig: TextParseModeConfig;
   configMap: TextParseModeConfigMap;
   markerColor: string;
+  runtimeSettings: RuntimeSettings;
 }

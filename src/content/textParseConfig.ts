@@ -2,6 +2,7 @@ import {
   loadActiveTextParseMode,
   loadTextParseModeConfigMap,
 } from '../popup/services/textParseModeStorage';
+import { loadRuntimeSettings } from '../popup/services/runtimeSettingsStorage';
 import { dayColors, loadThemeSchemeState } from '../popup/services/themeSchemeStorage';
 import type { TextParseRuntimeConfig } from './textParseTypes';
 
@@ -11,10 +12,11 @@ import type { TextParseRuntimeConfig } from './textParseTypes';
  * @returns 文本解析运行配置。
  */
 export async function loadTextParseRuntimeConfig(): Promise<TextParseRuntimeConfig> {
-  const [configMap, activeMode, themeState] = await Promise.all([
+  const [configMap, activeMode, themeState, runtimeSettings] = await Promise.all([
     loadTextParseModeConfigMap(),
     loadActiveTextParseMode(),
     loadThemeSchemeState(),
+    loadRuntimeSettings(),
   ]);
   const activeScheme = themeState.schemes.find((item) => item.id === themeState.activeSchemeId);
 
@@ -23,5 +25,6 @@ export async function loadTextParseRuntimeConfig(): Promise<TextParseRuntimeConf
     activeConfig: configMap[activeMode],
     configMap,
     markerColor: activeScheme?.colors.marker ?? dayColors.marker,
+    runtimeSettings,
   };
 }

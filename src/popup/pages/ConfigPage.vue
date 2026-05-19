@@ -1,5 +1,6 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
+    <RuntimeSettingsPanel :settings="runtimeSettings" @update="handleRuntimeSettingsUpdate" />
     <section class="config-block">
       <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
       <p class="block-description">{{ t('theme.panelDescription') }}</p>
@@ -56,6 +57,7 @@
 import { ElOption, ElSelect } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
+import RuntimeSettingsPanel from '../components/config/RuntimeSettingsPanel.vue';
 import TextParseModeTabs from '../components/config/TextParseModeTabs.vue';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
 import ThemeColorEditor from '../components/theme/ThemeColorEditor.vue';
@@ -63,6 +65,11 @@ import ThemeSchemeTabs from '../components/theme/ThemeSchemeTabs.vue';
 import { useI18n } from '../composables/useI18n';
 import { useThemeScheme } from '../composables/useThemeScheme';
 import { resolveThemeColors } from '../services/themeRuntime';
+import {
+  createDefaultRuntimeSettings,
+  loadRuntimeSettings,
+  saveRuntimeSettings,
+} from '../services/runtimeSettingsStorage';
 import { createThemeScheme } from '../services/themeSchemeStorage';
 import {
   createDefaultTranslationModeConfigMap,
@@ -79,6 +86,7 @@ import {
 import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textParseMode';
 import type { TranslationModeConfigMap, TranslationModeKey } from '../types/translationMode';
 import type { ThemeColors } from '../types/theme';
+import type { RuntimeSettings } from '../types/runtimeSettings';
 
 const { state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, setLocale, t } = useI18n();
@@ -89,6 +97,7 @@ const activeTranslationMode = ref<TranslationModeKey>('normal');
 const activeTextParseMode = ref<TextParseModeKey>('visible');
 const translationModeConfigMap = reactive<TranslationModeConfigMap>(createDefaultTranslationModeConfigMap());
 const textParseModeConfigMap = reactive<TextParseModeConfigMap>(createDefaultTextParseModeConfigMap());
+const runtimeSettings = reactive<RuntimeSettings>(createDefaultRuntimeSettings());
 
 const activeScheme = computed(() =>
   themeState.schemes.find((item) => item.id === themeState.activeSchemeId) ?? themeState.schemes[0],
@@ -97,13 +106,15 @@ const activeScheme = computed(() =>
 const activeColors = computed(() => (activeScheme.value ? resolveThemeColors(activeScheme.value) : themeState.schemes[0].colors));
 
 onMounted(async () => {
-  const [translationModeConfig, textParseModeConfig] = await Promise.all([
+  const [translationModeConfig, textParseModeConfig, nextRuntimeSettings] = await Promise.all([
     loadTranslationModeConfigMap(),
     loadTextParseModeConfigMap(),
+    loadRuntimeSettings(),
   ]);
 
   Object.assign(translationModeConfigMap, translationModeConfig);
   Object.assign(textParseModeConfigMap, textParseModeConfig);
+  Object.assign(runtimeSettings, nextRuntimeSettings);
   activeTextParseMode.value = await loadActiveTextParseMode();
 });
 
@@ -181,6 +192,11 @@ function handleSelectTextParseMode(mode: TextParseModeKey): void {
 async function handleTextParseModeUpdate(configMap: TextParseModeConfigMap): Promise<void> {
   Object.assign(textParseModeConfigMap, configMap);
   await saveTextParseModeConfigMap(textParseModeConfigMap);
+}
+
+async function handleRuntimeSettingsUpdate(settings: RuntimeSettings): Promise<void> {
+  Object.assign(runtimeSettings, settings);
+  await saveRuntimeSettings(runtimeSettings);
 }
 </script>
 
