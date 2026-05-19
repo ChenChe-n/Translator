@@ -1,0 +1,14 @@
+node_modules/
+dist/
+package-lock.json
+.vite/
+.turbo/
+.cache/
+coverage/
+*.local
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
