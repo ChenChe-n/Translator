@@ -1,4 +1,5 @@
 import type { ApiConfig } from '../types/api';
+import { recordModelUsage } from './modelUsageStorage';
 
 interface ChatResponse {
   choices?: Array<{
@@ -6,6 +7,10 @@ interface ChatResponse {
       content?: string;
     };
   }>;
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+  };
 }
 
 const JSON_HEADERS = {
@@ -20,6 +25,7 @@ const JSON_HEADERS = {
  * @returns 模型输出文本。
  */
 export async function requestText(config: ApiConfig, prompt: string): Promise<string> {
+  const inputTokens = estimateTokenCount(prompt);
   const response = await requestChat(config, {
     messages: [
       {
@@ -29,7 +35,7 @@ export async function requestText(config: ApiConfig, prompt: string): Promise<st
     ],
   });
 
-  return readChatContent(response);
+  return readAndRecordChatContent(config, response, inputTokens);
 }
 
 /**
@@ -40,6 +46,7 @@ export async function requestText(config: ApiConfig, prompt: string): Promise<st
  * @returns 模型输出文本。
  */
 export async function requestJson(config: ApiConfig, prompt: string): Promise<string> {
+  const inputTokens = estimateTokenCount(prompt);
   const response = await requestChat(config, {
     response_format: {
       type: 'json_object',
@@ -52,7 +59,7 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
     ],
   });
 
-  return readChatContent(response);
+  return readAndRecordChatContent(config, response, inputTokens);
 }
 
 /**
@@ -64,6 +71,7 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
  * @returns 模型输出文本。
  */
 export async function requestImage(config: ApiConfig, prompt: string, imageUrl: string): Promise<string> {
+  const inputTokens = estimateTokenCount(prompt) + estimateImageInputTokens(imageUrl);
   const response = await requestChat(config, {
     messages: [
       {
@@ -84,7 +92,7 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
     ],
   });
 
-  return readChatContent(response);
+  return readAndRecordChatContent(config, response, inputTokens);
 }
 
 /**
@@ -95,6 +103,7 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
  * @returns 完整流式输出文本。
  */
 export async function requestStream(config: ApiConfig, prompt: string): Promise<string> {
+  const inputTokens = estimateTokenCount(prompt);
   const response = await requestChat(config, {
     stream: true,
     messages: [
@@ -105,7 +114,9 @@ export async function requestStream(config: ApiConfig, prompt: string): Promise<
     ],
   });
 
-  return readStreamContent(response);
+  const content = await readStreamContent(response);
+  await recordUsage(config, inputTokens, content);
+  return content;
 }
 
 async function requestChat(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
@@ -128,9 +139,15 @@ async function requestChat(config: ApiConfig, body: Record<string, unknown>): Pr
   return response;
 }
 
-async function readChatContent(response: Response): Promise<string> {
+async function readAndRecordChatContent(
+  config: ApiConfig,
+  response: Response,
+  inputTokens: number,
+): Promise<string> {
   const data = (await response.json()) as ChatResponse;
-  return data.choices?.[0]?.message?.content ?? '';
+  const content = data.choices?.[0]?.message?.content ?? '';
+  await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
+  return content;
 }
 
 async function readStreamContent(response: Response): Promise<string> {
@@ -222,4 +239,25 @@ function buildChatUrl(url: string): string {
   }
 
   return `${normalizedUrl}/chat/completions`;
+}
+
+async function recordUsage(
+  config: ApiConfig,
+  inputTokens: number,
+  content: string,
+  outputTokens = estimateTokenCount(content),
+): Promise<void> {
+  await recordModelUsage({
+    model: config.model,
+    inputTokens,
+    outputTokens,
+  });
+}
+
+function estimateImageInputTokens(imageUrl: string): number {
+  return imageUrl.startsWith('data:') ? Math.max(85, Math.round(imageUrl.length / 600)) : 85;
+}
+
+function estimateTokenCount(content: string): number {
+  return Math.max(1, Math.round(content.trim().length / 4));
 }

@@ -21,6 +21,32 @@ export interface ApiCheckResult {
 }
 
 /**
+ * 模型每日 token 使用量。
+ */
+export interface ModelDailyUsage {
+  date: string;
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
+ * 模型统计设置。
+ */
+export interface UsageStatsSettings {
+  retentionDays: number;
+}
+
+/**
+ * 模型调用记录输入。
+ */
+export interface ModelUsageRecordInput {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+/**
  * API 测试项标识。
  */
 export type ApiCheckKey =

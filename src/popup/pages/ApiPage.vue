@@ -14,6 +14,11 @@
         </li>
       </ul>
     </section>
+    <ModelUsageStats
+      :usage="modelUsage"
+      :settings="usageSettings"
+      @retention-change="handleRetentionChange"
+    />
   </section>
 </template>
 
@@ -21,6 +26,7 @@
 import { ElButton, ElMessage } from 'element-plus';
 import { onMounted, ref } from 'vue';
 import ApiConfigForm from '../components/api/ApiConfigForm.vue';
+import ModelUsageStats from '../components/usage/ModelUsageStats.vue';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
 import {
   loadApiCheckResults,
@@ -28,7 +34,13 @@ import {
   saveApiCheckResults,
   saveApiConfig,
 } from '../services/apiConfigStorage';
-import type { ApiCheckResult, ApiConfig } from '../types/api';
+import {
+  loadModelDailyUsage,
+  loadUsageStatsSettings,
+  pruneUsage,
+  saveUsageStatsSettings,
+} from '../services/modelUsageStorage';
+import type { ApiCheckResult, ApiConfig, ModelDailyUsage, UsageStatsSettings } from '../types/api';
 
 const config = ref<ApiConfig>({
   baseUrl: '',
@@ -38,10 +50,21 @@ const config = ref<ApiConfig>({
 
 const testing = ref(false);
 const checkResults = ref<ApiCheckResult[]>(createDefaultApiCheckResults());
+const modelUsage = ref<ModelDailyUsage[]>([]);
+const usageSettings = ref<UsageStatsSettings>({
+  retentionDays: 30,
+});
 
 onMounted(async () => {
-  const [storedConfig, storedResults] = await Promise.all([loadApiConfig(), loadApiCheckResults()]);
+  const [storedConfig, storedResults, storedUsage, storedSettings] = await Promise.all([
+    loadApiConfig(),
+    loadApiCheckResults(),
+    loadModelDailyUsage(),
+    loadUsageStatsSettings(),
+  ]);
   config.value = storedConfig;
+  modelUsage.value = storedUsage;
+  usageSettings.value = storedSettings;
 
   if (storedResults.length > 0) {
     checkResults.value = mergeResults(storedResults);
@@ -58,12 +81,21 @@ async function handleRunChecks(): Promise<void> {
     for await (const result of runApiHealthChecks(config.value)) {
       updateCheckResult(result);
       await saveApiCheckResults(checkResults.value);
+      await refreshModelUsage();
     }
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '测试失败');
   } finally {
     testing.value = false;
   }
+}
+
+async function handleRetentionChange(value: number): Promise<void> {
+  usageSettings.value = {
+    retentionDays: value,
+  };
+  modelUsage.value = pruneUsage(modelUsage.value, value);
+  await saveUsageStatsSettings(usageSettings.value);
 }
 
 function ensureConfig(): void {
@@ -74,6 +106,10 @@ function ensureConfig(): void {
 
 function updateCheckResult(result: ApiCheckResult): void {
   checkResults.value = checkResults.value.map((item) => (item.key === result.key ? result : item));
+}
+
+async function refreshModelUsage(): Promise<void> {
+  modelUsage.value = await loadModelDailyUsage();
 }
 
 function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
