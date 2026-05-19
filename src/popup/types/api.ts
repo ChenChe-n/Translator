@@ -2,9 +2,19 @@
  * OpenAI 兼容接口配置。
  */
 export interface ApiConfig {
+  id: string;
+  name: string;
   baseUrl: string;
   apiKey: string;
   model: string;
+}
+
+/**
+ * OpenAI 兼容接口配置集合。
+ */
+export interface ApiConfigState {
+  activeConfigId: string;
+  configs: ApiConfig[];
 }
 
 /**

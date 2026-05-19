@@ -1,5 +1,8 @@
 <template>
   <ElForm label-position="top" class="config-form">
+    <ElFormItem label="name">
+      <ElInput v-model="model.name" placeholder="默认使用模型名" clearable />
+    </ElFormItem>
     <ElFormItem label="URL">
       <ElInput v-model="model.baseUrl" placeholder="https://api.openai.com/v1" clearable />
     </ElFormItem>

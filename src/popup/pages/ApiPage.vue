@@ -1,22 +1,20 @@
 <template>
   <section class="page-shell" aria-label="api">
-    <ApiConfigForm v-model="config" />
-    <div class="action-row">
-      <ElButton class="action-button" @click="handleSaveConfig">保存</ElButton>
-      <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
+    <ApiConfigTabs
+      :configs="configState.configs"
+      :active-config-id="configState.activeConfigId"
+      @create="handleCreateConfig"
+      @remove="handleRemoveConfig"
+      @select="handleSelectConfig"
+    />
+    <div class="config-shell" :class="{ expanded: configExpanded }">
+      <ApiConfigForm v-if="configExpanded" v-model="config" />
+      <div class="action-row">
+        <ElButton class="action-button" @click="handleSaveConfig">保存</ElButton>
+        <ElButton type="primary" class="action-button" :loading="testing" @click="handleRunChecks">测试</ElButton>
+      </div>
     </div>
-    <section class="result-panel">
-      <h2 class="panel-title">上一次测试信息:</h2>
-      <ul class="check-list">
-        <li v-for="item in checkResults" :key="item.key" class="check-item">
-          <span>{{ item.label }}</span>
-          <span class="check-value">
-            <span v-if="item.durationMs && item.passed" class="duration">{{ formatDuration(item) }}</span>
-            <span :class="getStateClass(item)">{{ formatState(item) }}</span>
-          </span>
-        </li>
-      </ul>
-    </section>
+    <ApiCheckResultList :results="checkResults" />
     <ModelUsageStats
       :usage="modelUsage"
       :settings="usageSettings"
@@ -27,15 +25,19 @@
 
 <script setup lang="ts">
 import { ElButton, ElMessage } from 'element-plus';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import ApiConfigForm from '../components/api/ApiConfigForm.vue';
+import ApiConfigTabs from '../components/api/ApiConfigTabs.vue';
+import ApiCheckResultList from '../components/api/ApiCheckResultList.vue';
 import ModelUsageStats from '../components/usage/ModelUsageStats.vue';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
 import {
   loadApiCheckResults,
-  loadApiConfig,
+  createApiConfig,
+  createDefaultApiConfigState,
+  loadApiConfigState,
   saveApiCheckResults,
-  saveApiConfig,
+  saveApiConfigState,
 } from '../services/apiConfigStorage';
 import {
   loadModelDailyUsage,
@@ -43,14 +45,11 @@ import {
   pruneUsage,
   saveUsageStatsSettings,
 } from '../services/modelUsageStorage';
-import type { ApiCheckResult, ApiConfig, ModelDailyUsage, UsageStatsSettings } from '../types/api';
+import type { ApiCheckResult, ApiConfig, ApiConfigState, ModelDailyUsage, UsageStatsSettings } from '../types/api';
 
-const config = ref<ApiConfig>({
-  baseUrl: '',
-  apiKey: '',
-  model: '',
-});
+const configState = reactive<ApiConfigState>(createDefaultApiConfigState());
 
+const configExpanded = ref(false);
 const testing = ref(false);
 const checkResults = ref<ApiCheckResult[]>(createDefaultApiCheckResults());
 const modelUsage = ref<ModelDailyUsage[]>([]);
@@ -58,14 +57,23 @@ const usageSettings = ref<UsageStatsSettings>({
   retentionDays: 30,
 });
 
+const config = computed<ApiConfig>({
+  get() {
+    return getActiveConfig();
+  },
+  set(value) {
+    configState.configs = configState.configs.map((item) => (item.id === value.id ? value : item));
+  },
+});
+
 onMounted(async () => {
-  const [storedConfig, storedResults, storedUsage, storedSettings] = await Promise.all([
-    loadApiConfig(),
+  const [storedConfigState, storedResults, storedUsage, storedSettings] = await Promise.all([
+    loadApiConfigState(),
     loadApiCheckResults(),
     loadModelDailyUsage(),
     loadUsageStatsSettings(),
   ]);
-  config.value = storedConfig;
+  Object.assign(configState, storedConfigState);
   modelUsage.value = storedUsage;
   usageSettings.value = storedSettings;
 
@@ -76,7 +84,7 @@ onMounted(async () => {
 
 async function handleSaveConfig(): Promise<void> {
   ensureConfig();
-  await saveApiConfig({ ...config.value });
+  await saveConfigState();
   ElMessage.success('配置已保存');
 }
 
@@ -85,7 +93,7 @@ async function handleRunChecks(): Promise<void> {
 
   try {
     ensureConfig();
-    await saveApiConfig({ ...config.value });
+    await saveConfigState();
 
     for await (const result of runApiHealthChecks(config.value)) {
       updateCheckResult(result);
@@ -97,6 +105,41 @@ async function handleRunChecks(): Promise<void> {
   } finally {
     testing.value = false;
   }
+}
+
+async function handleCreateConfig(): Promise<void> {
+  const nextConfig = createApiConfig();
+  configState.configs.push(nextConfig);
+  configState.activeConfigId = nextConfig.id;
+  configExpanded.value = true;
+  await saveConfigState();
+}
+
+async function handleRemoveConfig(id: string): Promise<void> {
+  if (configState.configs.length <= 1) {
+    ElMessage.warning('至少保留一个配置');
+    return;
+  }
+
+  configState.configs = configState.configs.filter((item) => item.id !== id);
+
+  if (configState.activeConfigId === id) {
+    configState.activeConfigId = configState.configs[0].id;
+    configExpanded.value = false;
+  }
+
+  await saveConfigState();
+}
+
+async function handleSelectConfig(id: string): Promise<void> {
+  if (configState.activeConfigId === id) {
+    configExpanded.value = !configExpanded.value;
+    return;
+  }
+
+  configState.activeConfigId = id;
+  configExpanded.value = true;
+  await saveConfigState();
 }
 
 async function handleRetentionChange(value: number): Promise<void> {
@@ -111,6 +154,30 @@ function ensureConfig(): void {
   if (!config.value.baseUrl || !config.value.apiKey || !config.value.model) {
     throw new Error('请先填写 URL、Key 和模型。');
   }
+}
+
+async function saveConfigState(): Promise<void> {
+  normalizeActiveConfigName();
+  await saveApiConfigState({
+    activeConfigId: configState.activeConfigId,
+    configs: configState.configs,
+  });
+}
+
+function getActiveConfig(): ApiConfig {
+  if (configState.configs.length === 0) {
+    const nextConfig = createApiConfig();
+    configState.configs.push(nextConfig);
+    configState.activeConfigId = nextConfig.id;
+    return nextConfig;
+  }
+
+  return configState.configs.find((item) => item.id === configState.activeConfigId) ?? configState.configs[0];
+}
+
+function normalizeActiveConfigName(): void {
+  const activeConfig = getActiveConfig();
+  activeConfig.name = activeConfig.name || activeConfig.model;
 }
 
 function updateCheckResult(result: ApiCheckResult): void {
@@ -137,29 +204,6 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
   });
 }
 
-function formatDuration(item: ApiCheckResult): string {
-  if (item.tokenPerSecond !== undefined) {
-    return `${item.durationMs}ms ${item.tokenPerSecond}/s`;
-  }
-
-  return `${item.durationMs}ms`;
-}
-
-function formatState(item: ApiCheckResult): string {
-  if (item.status === 'running') {
-    return '...';
-  }
-
-  return item.passed ? '√' : '×';
-}
-
-function getStateClass(item: ApiCheckResult): string {
-  if (item.status === 'running') {
-    return 'running';
-  }
-
-  return item.passed ? 'passed' : 'failed';
-}
 </script>
 
 <style scoped>
@@ -169,6 +213,17 @@ function getStateClass(item: ApiCheckResult): string {
   gap: 12px;
   padding: 12px;
   background: #f8fafc;
+}
+
+.config-shell {
+  padding: 12px;
+  border: 1px solid #edf1f5;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.config-shell.expanded {
+  box-shadow: 0 8px 20px rgb(15 23 42 / 8%);
 }
 
 .action-row {
@@ -182,60 +237,4 @@ function getStateClass(item: ApiCheckResult): string {
   height: 38px;
 }
 
-.result-panel {
-  padding: 12px;
-  border: 1px solid #edf1f5;
-  border-radius: 8px;
-  background: #ffffff;
-}
-
-.panel-title {
-  margin: 0 0 10px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #111827;
-}
-
-.check-list {
-  display: grid;
-  gap: 8px;
-  padding: 0;
-  margin: 0;
-  list-style: none;
-}
-
-.check-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  font-size: 13px;
-  color: #334155;
-}
-
-.check-value {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.duration {
-  color: #64748b;
-}
-
-.passed {
-  color: #16a34a;
-  font-weight: 700;
-}
-
-.running {
-  color: #2563eb;
-  font-weight: 700;
-}
-
-.failed {
-  color: #dc2626;
-  font-weight: 700;
-}
 </style>
