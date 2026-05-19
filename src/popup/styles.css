@@ -6,6 +6,15 @@ body,
   margin: 0;
 }
 
+* {
+  box-sizing: border-box;
+}
+
 body {
-  background: #ffffff;
+  background: #f8fafc;
+  font-family:
+    Inter,
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
 }

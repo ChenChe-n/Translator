@@ -12,6 +12,10 @@ export function useCurrentPagePort(): void {
     kind: 'popup-connected',
   };
 
+  if (typeof chrome === 'undefined' || !chrome.tabs?.query || !chrome.tabs?.connect) {
+    return;
+  }
+
   void chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
     if (typeof tab?.id !== 'number') {
       return;
