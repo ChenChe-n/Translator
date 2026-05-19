@@ -1,13 +1,13 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
-    <section class="scheme-panel" :aria-label="t('theme.panelAria')">
-      <ThemeSchemeTabs
-        :schemes="themeState.schemes"
-        :active-scheme-id="themeState.activeSchemeId"
-        @create="handleCreateScheme"
-        @remove="handleRemoveScheme"
-        @select="handleSelectScheme"
-      />
+    <ThemeSchemeTabs
+      :schemes="themeState.schemes"
+      :active-scheme-id="themeState.activeSchemeId"
+      @create="handleCreateScheme"
+      @remove="handleRemoveScheme"
+      @select="handleSelectScheme"
+    />
+    <section v-if="schemeExpanded" class="scheme-shell" :aria-label="t('theme.panelAria')">
       <ThemeColorEditor
         v-if="activeScheme"
         :colors="activeColors"
@@ -36,7 +36,7 @@
 
 <script setup lang="ts">
 import { ElOption, ElSelect } from 'element-plus';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
 import ThemeColorEditor from '../components/theme/ThemeColorEditor.vue';
 import ThemeSchemeTabs from '../components/theme/ThemeSchemeTabs.vue';
@@ -48,6 +48,7 @@ import type { ThemeColors } from '../types/theme';
 
 const { state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, setLocale, t } = useI18n();
+const schemeExpanded = ref(false);
 
 const activeScheme = computed(() =>
   themeState.schemes.find((item) => item.id === themeState.activeSchemeId) ?? themeState.schemes[0],
@@ -60,6 +61,7 @@ async function handleCreateScheme(): Promise<void> {
   const nextScheme = createThemeScheme(customCount + 1, t('theme.scheme.custom', { index: customCount + 1 }));
   themeState.schemes.push(nextScheme);
   themeState.activeSchemeId = nextScheme.id;
+  schemeExpanded.value = true;
   await save();
 }
 
@@ -69,13 +71,20 @@ async function handleRemoveScheme(id: string): Promise<void> {
 
   if (removingActive) {
     themeState.activeSchemeId = themeState.schemes[0].id;
+    schemeExpanded.value = false;
   }
 
   await save();
 }
 
 async function handleSelectScheme(id: string): Promise<void> {
+  if (themeState.activeSchemeId === id) {
+    schemeExpanded.value = !schemeExpanded.value;
+    return;
+  }
+
   themeState.activeSchemeId = id;
+  schemeExpanded.value = true;
   await save();
 }
 
@@ -104,7 +113,7 @@ async function handleLocaleChange(value: LocaleCode): Promise<void> {
   background: var(--translator-background);
 }
 
-.scheme-panel {
+.scheme-shell {
   display: grid;
   gap: 12px;
   padding: 12px;
