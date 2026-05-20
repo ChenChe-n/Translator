@@ -7,6 +7,7 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  disableThinkingStrategy?: DisableThinkingStrategy;
   maxConcurrency: number;
   inputTokenPrice: number;
   cachedInputTokenPrice: number;
@@ -35,6 +36,8 @@ export interface ApiCheckResult {
   status: ApiCheckStatus;
   passed: boolean;
   message: string;
+  configSignature?: string;
+  disableThinkingStrategy?: DisableThinkingStrategy;
   durationMs?: number;
   tokenPerSecond?: number;
 }
@@ -76,6 +79,7 @@ export interface ModelUsageRecordInput {
  * API 测试项标识。
  */
 export type ApiCheckKey =
+  | 'thinkingMode'
   | 'basicText'
   | 'jsonOutput'
   | 'imageUnderstanding'
@@ -86,3 +90,8 @@ export type ApiCheckKey =
  * API 测试运行状态。
  */
 export type ApiCheckStatus = 'pending' | 'running' | 'finished';
+
+/**
+ * 禁用模型思考模式的请求体策略。
+ */
+export type DisableThinkingStrategy = 'none' | 'thinking' | 'enableThinking' | 'both';

@@ -2,7 +2,7 @@ import {
   loadActiveTextParseMode,
   loadTextParseModeConfigMap,
 } from '../popup/services/textParseModeStorage';
-import { loadApiConfig } from '../popup/services/apiConfigStorage';
+import { loadTestedApiConfig } from '../popup/services/apiConfigStorage';
 import { loadLocale } from '../i18n/localeStorage';
 import { loadRuntimeSettings } from '../popup/services/runtimeSettingsStorage';
 import { loadActiveTranslationMode, loadTranslationModeConfigMap } from '../popup/services/translationModeStorage';
@@ -31,7 +31,7 @@ export async function loadTextParseRuntimeConfig(): Promise<TextParseRuntimeConf
     loadRuntimeSettings(),
     loadTranslationModeConfigMap(),
     loadActiveTranslationMode(),
-    loadApiConfig(),
+    loadTestedApiConfig(),
     loadLocale(),
   ]);
   const activeScheme = themeState.schemes.find((item) => item.id === themeState.activeSchemeId);

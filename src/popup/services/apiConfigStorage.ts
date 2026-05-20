@@ -1,4 +1,5 @@
 import type { ApiCheckResult, ApiCheckResultMap, ApiConfig, ApiConfigState } from '../types/api';
+import { getTestedDisableThinkingStrategy, isApiConfigTestPassed } from './apiConfigValidation';
 
 export const CONFIG_STORAGE_KEY = 'Translator.apiConfig';
 export const CONFIG_STATE_STORAGE_KEY = 'Translator.apiConfigState';
@@ -25,6 +26,25 @@ const defaultConfig: ApiConfig = {
 export async function loadApiConfig(): Promise<ApiConfig> {
   const state = await loadApiConfigState();
   return getActiveConfig(state);
+}
+
+/**
+ * 读取已通过测试的 API 配置。
+ *
+ * @returns 已附带测试兼容策略的 API 配置。
+ */
+export async function loadTestedApiConfig(): Promise<ApiConfig> {
+  const config = await loadApiConfig();
+  const results = await loadApiCheckResults(config.id);
+
+  if (!isApiConfigTestPassed(config, results)) {
+    throw new Error('api.errors.configNotTested');
+  }
+
+  return {
+    ...config,
+    disableThinkingStrategy: getTestedDisableThinkingStrategy(results),
+  };
 }
 
 /**

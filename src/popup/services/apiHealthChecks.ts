@@ -1,9 +1,11 @@
 import type { ApiCheckKey, ApiCheckResult, ApiConfig } from '../types/api';
 import type { I18nKey } from '../../i18n';
 import { requestImage, requestJson, requestStream, requestText, type RequestUsageOptions } from './openAiCompatibleClient';
+import { testThinkingMode } from './apiThinkingModeCheck';
 
 interface ApiCheckTaskResult {
   passed: boolean;
+  disableThinkingStrategy?: ApiCheckResult['disableThinkingStrategy'];
   outputTokens?: number;
 }
 
@@ -25,6 +27,11 @@ const STREAM_TOKEN = 'TRANSLATOR_STREAM_OK';
 const TOKEN_TARGET = 100;
 
 const checkDefinitions: ApiCheckDefinition[] = [
+  {
+    key: 'thinkingMode',
+    labelKey: 'api.checks.thinkingMode',
+    task: testThinkingModeCompatibility,
+  },
   {
     key: 'basicText',
     labelKey: 'api.checks.basicText',
@@ -77,13 +84,22 @@ export async function* runApiHealthChecks(
   config: ApiConfig,
   options: ApiHealthCheckOptions = {},
 ): AsyncGenerator<ApiCheckResult> {
+  let testingConfig = { ...config };
+
   for (const definition of checkDefinitions) {
     if (options.isActive?.() === false) {
       return;
     }
 
     yield buildRunningResult(definition);
-    yield await runCheck(config, definition, options);
+    const result = await runCheck(testingConfig, definition, options);
+    if (result.disableThinkingStrategy) {
+      testingConfig = {
+        ...testingConfig,
+        disableThinkingStrategy: result.disableThinkingStrategy,
+      };
+    }
+    yield result;
   }
 }
 
@@ -92,6 +108,10 @@ async function testBasicText(config: ApiConfig, options: RequestUsageOptions): P
   return {
     passed: content.includes(BASIC_TEXT_TOKEN),
   };
+}
+
+async function testThinkingModeCompatibility(config: ApiConfig): Promise<ApiCheckTaskResult> {
+  return testThinkingMode(config);
 }
 
 async function testJsonOutput(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
@@ -185,6 +205,7 @@ function buildFinishedResult(
     passed: result.passed,
     message: result.passed ? 'api.checks.passed' : 'api.checks.failed',
     durationMs,
+    disableThinkingStrategy: result.disableThinkingStrategy,
     tokenPerSecond:
       definition.key === 'tokenThroughput' ? calculateTokenPerSecond(result.outputTokens ?? 0, durationMs) : undefined,
   };

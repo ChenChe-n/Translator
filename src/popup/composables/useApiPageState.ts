@@ -2,16 +2,10 @@ import { ElMessage } from 'element-plus';
 import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import { useI18n } from './useI18n';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
-import {
-  clearApiCheckResults,
-  clearApiConfigState,
-  createApiConfig,
-  createDefaultApiConfigState,
-  loadApiCheckResults,
-  loadApiConfigState,
-  saveApiCheckResults,
-  saveApiConfigState,
-} from '../services/apiConfigStorage';
+import { createApiConfigSignature } from '../services/apiConfigSignature';
+import { clearApiCheckResults, clearApiConfigState, createApiConfig, createDefaultApiConfigState } from '../services/apiConfigStorage';
+import { loadApiCheckResults, loadApiConfigState, saveApiCheckResults, saveApiConfigState } from '../services/apiConfigStorage';
+import { resetMismatchedApiCheckResults } from '../services/apiConfigValidation';
 import {
   clearModelDailyUsage,
   clearUsageStatsSettings,
@@ -47,9 +41,7 @@ export function useApiPageState() {
       configState.configs = configState.configs.map((item) => (item.id === value.id ? value : item));
     },
   });
-  const previewConfig = computed(() =>
-    configState.configs.find((item) => item.id === hoveredConfigId.value),
-  );
+  const previewConfig = computed(() => configState.configs.find((item) => item.id === hoveredConfigId.value));
 
   onMounted(async () => {
     const [storedConfigState, storedUsage, storedSettings] = await Promise.all([
@@ -115,6 +107,7 @@ export function useApiPageState() {
     testing.value = true;
     const testingConfig = { ...config.value };
     const testingConfigId = testingConfig.id;
+    const testingSignature = createApiConfigSignature(testingConfig);
 
     try {
       ensureConfig();
@@ -128,8 +121,10 @@ export function useApiPageState() {
         if (generation !== testGeneration) {
           return;
         }
-
-        await updateCheckResult(testingConfigId, result);
+        await updateCheckResult(testingConfigId, {
+          ...result,
+          configSignature: result.status === 'finished' ? testingSignature : undefined,
+        });
         await refreshModelUsage();
       }
     } catch (error) {
@@ -268,10 +263,11 @@ export function useApiPageState() {
   }
 
   function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
-    return createDefaultApiCheckResults().map((item) => {
+    const mergedResults = createDefaultApiCheckResults().map((item) => {
       const stored = results.find((result) => result.key === item.key);
       return stored ? { ...item, ...stored, label: item.label, status: stored.status ?? 'finished' } : item;
     });
+    return resetMismatchedApiCheckResults(config.value, mergedResults);
   }
 
   return {
