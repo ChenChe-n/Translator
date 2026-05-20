@@ -8,6 +8,8 @@ const dashScopeThinkingModels = [
 const deepSeekThinkingModels = [
   /^deepseek-v4-(?:flash|pro)$/i,
 ];
+const dashScopeHosts = ['dashscope.aliyuncs.com', 'bailian.aliyuncs.com'];
+const deepSeekHosts = ['api.deepseek.com'];
 
 /**
  * 创建实际发送给聊天接口的请求体。
@@ -57,14 +59,26 @@ function shouldDisableDeepSeekThinking(config: ApiConfig, payload: Record<string
 }
 
 function isDashScopeBaseUrl(baseUrl: string): boolean {
-  const normalizedUrl = baseUrl.trim().toLowerCase();
-  return normalizedUrl.includes('dashscope.aliyuncs.com') || normalizedUrl.includes('bailian.aliyuncs.com');
+  return isAllowedHost(baseUrl, dashScopeHosts);
 }
 
 function isDeepSeekBaseUrl(baseUrl: string): boolean {
-  return baseUrl.trim().toLowerCase().includes('api.deepseek.com');
+  return isAllowedHost(baseUrl, deepSeekHosts);
 }
 
 function isKnownThinkingModel(model: string): boolean {
   return dashScopeThinkingModels.some((pattern) => pattern.test(model.trim()));
+}
+
+function isAllowedHost(baseUrl: string, allowedHosts: string[]): boolean {
+  const host = readUrlHost(baseUrl);
+  return Boolean(host && allowedHosts.includes(host));
+}
+
+function readUrlHost(baseUrl: string): string | undefined {
+  try {
+    return new URL(baseUrl.trim()).hostname.toLowerCase();
+  } catch {
+    return undefined;
+  }
 }
