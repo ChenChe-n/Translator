@@ -1,6 +1,7 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.monitor')">
     <PageClearButton @clear="handleClearPage" />
+    <CacheStatsPanel :normal-count="cacheStats.normal" :context-count="cacheStats.context" />
     <TextParseDurationChart :metrics="metrics" />
     <ModelCallLogPanel :logs="modelCallLogs" />
   </section>
@@ -11,19 +12,26 @@ import { ElMessage } from 'element-plus';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from '../composables/useI18n';
 import PageClearButton from '../components/common/PageClearButton.vue';
+import CacheStatsPanel from '../components/monitor/CacheStatsPanel.vue';
 import ModelCallLogPanel from '../components/monitor/ModelCallLogPanel.vue';
 import TextParseDurationChart from '../components/monitor/TextParseDurationChart.vue';
 import { MODEL_CALL_LOG_KEY, clearModelCallLogs, loadModelCallLogs } from '../services/modelCallLogStorage';
 import { TEXT_PARSE_METRICS_KEY, clearTextParseMetrics, loadTextParseMetrics } from '../services/textParseMetricsStorage';
+import { TRANSLATION_CACHE_STORAGE_KEYS, loadTranslationCacheStats } from '../services/translationCacheStorage';
 import type { ModelCallLog } from '../types/modelCall';
 import type { TextParseMetric } from '../types/textParseMetrics';
 
 const { t } = useI18n();
 const metrics = ref<TextParseMetric[]>([]);
 const modelCallLogs = ref<ModelCallLog[]>([]);
+const cacheStats = ref({
+  normal: 0,
+  context: 0,
+});
 
 onMounted(async () => {
   [metrics.value, modelCallLogs.value] = await Promise.all([loadTextParseMetrics(), loadModelCallLogs()]);
+  await refreshCacheStats();
   chrome.storage?.onChanged?.addListener(handleStorageChanged);
 });
 
@@ -46,6 +54,25 @@ async function handleStorageChanged(changes: Record<string, chrome.storage.Stora
   if (areaName === 'local' && changes[MODEL_CALL_LOG_KEY]) {
     modelCallLogs.value = await loadModelCallLogs();
   }
+
+  if (areaName === 'local' && shouldRefreshCacheStats(changes)) {
+    await refreshCacheStats();
+  }
+}
+
+async function refreshCacheStats(): Promise<void> {
+  const [normalStats, contextStats] = await Promise.all([
+    loadTranslationCacheStats('normal'),
+    loadTranslationCacheStats('context'),
+  ]);
+  cacheStats.value = {
+    normal: normalStats.count,
+    context: contextStats.count,
+  };
+}
+
+function shouldRefreshCacheStats(changes: Record<string, chrome.storage.StorageChange>): boolean {
+  return Object.values(TRANSLATION_CACHE_STORAGE_KEYS).some((key) => Boolean(changes[key]));
 }
 </script>
 

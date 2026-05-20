@@ -15,18 +15,20 @@
 import { ElSegmented } from 'element-plus';
 import { computed, ref, type Component } from 'vue';
 import ApiPage from './pages/ApiPage.vue';
+import CachePage from './pages/CachePage.vue';
 import ConfigPage from './pages/ConfigPage.vue';
 import MonitorPage from './pages/MonitorPage.vue';
 import { useCurrentPagePort } from './composables/useCurrentPagePort';
 import { useI18n } from './composables/useI18n';
 import { useThemeScheme } from './composables/useThemeScheme';
 
-type PopupTabKey = 'monitor' | 'config' | 'api';
+type PopupTabKey = 'monitor' | 'config' | 'api' | 'cache';
 
 const pageComponents: Record<PopupTabKey, Component> = {
   monitor: MonitorPage,
   config: ConfigPage,
   api: ApiPage,
+  cache: CachePage,
 };
 
 const { t } = useI18n();
@@ -44,6 +46,10 @@ const tabOptions = computed<Array<{ label: string; value: PopupTabKey }>>(() => 
   {
     label: t('app.tabs.api'),
     value: 'api',
+  },
+  {
+    label: t('app.tabs.cache'),
+    value: 'cache',
   },
 ]);
 

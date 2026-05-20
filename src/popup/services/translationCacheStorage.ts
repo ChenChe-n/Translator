@@ -1,9 +1,24 @@
 import type { TranslationModeKey } from '../types/translationMode';
 
+export type TranslationCacheSortKey = 'sourceText' | 'tid';
+
 export interface NormalTranslationCacheInput {
   sourceText: string;
   targetLanguage: string;
   tid: string;
+}
+
+export interface TranslationCacheViewEntry {
+  sourceText: string;
+  targetLanguage: string;
+  text: string | null;
+  tid: string;
+  updatedAt: number;
+}
+
+export interface TranslationCacheStats {
+  count: number;
+  mode: TranslationCacheMode;
 }
 
 interface TranslationCacheEntry {
@@ -14,7 +29,7 @@ interface TranslationCacheEntry {
   updatedAt: number;
 }
 
-type TranslationCacheMode = TranslationModeKey;
+export type TranslationCacheMode = TranslationModeKey;
 
 export const TRANSLATION_CACHE_STORAGE_KEYS: Record<TranslationCacheMode, string> = {
   normal: 'Translator.translationCache.normal',
@@ -91,6 +106,53 @@ export async function clearContextTranslationCache(): Promise<void> {
  */
 export async function clearTranslationCaches(): Promise<void> {
   await Promise.all(getCacheModes().map(clearTranslationCache));
+}
+
+/**
+ * 读取缓存目标语言列表。
+ *
+ * @param mode 翻译模式。
+ * @returns 目标语言列表。
+ */
+export async function loadTranslationCacheLanguages(mode: TranslationCacheMode): Promise<string[]> {
+  const cache = await loadTranslationCache(mode);
+  const languages = Object.values(cache).map((entry) => normalizeTargetLanguage(entry.targetLanguage));
+  return [...new Set(languages)].sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * 读取缓存展示条目。
+ *
+ * @param mode 翻译模式。
+ * @param targetLanguage 目标语言。
+ * @param sortKey 排序字段。
+ * @returns 缓存展示条目。
+ */
+export async function loadTranslationCacheEntries(
+  mode: TranslationCacheMode,
+  targetLanguage: string,
+  sortKey: TranslationCacheSortKey,
+): Promise<TranslationCacheViewEntry[]> {
+  const cache = await loadTranslationCache(mode);
+  return Object.values(cache)
+    .filter((entry) => normalizeTargetLanguage(entry.targetLanguage) === normalizeTargetLanguage(targetLanguage))
+    .map(toViewEntry)
+    .sort((left, right) => compareEntries(left, right, sortKey));
+}
+
+/**
+ * 读取缓存统计。
+ *
+ * @param mode 翻译模式。
+ * @returns 缓存统计。
+ */
+export async function loadTranslationCacheStats(mode: TranslationCacheMode): Promise<TranslationCacheStats> {
+  const cache = await loadTranslationCache(mode);
+
+  return {
+    mode,
+    count: Object.keys(cache).length,
+  };
 }
 
 async function readTranslationCache(
@@ -204,10 +266,32 @@ function normalizeCache(
 function pruneCache(cache: Record<string, TranslationCacheEntry>): Record<string, TranslationCacheEntry> {
   return Object.fromEntries(
     Object.entries(cache)
-      .filter(([, entry]) => Boolean(entry?.key && entry.sourceText))
+      .filter(([, entry]) => Boolean(entry?.key && entry.sourceText && entry.targetLanguage))
       .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
       .slice(0, maxCacheEntries),
   );
+}
+
+function toViewEntry(entry: TranslationCacheEntry): TranslationCacheViewEntry {
+  return {
+    sourceText: entry.sourceText,
+    targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
+    text: entry.text,
+    tid: entry.key,
+    updatedAt: entry.updatedAt,
+  };
+}
+
+function compareEntries(
+  left: TranslationCacheViewEntry,
+  right: TranslationCacheViewEntry,
+  sortKey: TranslationCacheSortKey,
+): number {
+  if (sortKey === 'tid') {
+    return left.tid.localeCompare(right.tid);
+  }
+
+  return left.sourceText.localeCompare(right.sourceText);
 }
 
 function createScopedCacheKey(input: NormalTranslationCacheInput): string {

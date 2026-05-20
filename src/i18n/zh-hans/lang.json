@@ -2,6 +2,7 @@
   "app.tabs.monitor": "监控",
   "app.tabs.config": "配置",
   "app.tabs.api": "API",
+  "app.tabs.cache": "缓存",
   "app.navAria": "页面选择",
   "common.clear": "清空",
   "common.clearConfirm": "确定清空当前页面数据吗？",
@@ -117,5 +118,17 @@
   "usage.retentionBefore": "保留",
   "usage.retentionAfter": "天",
   "usage.empty": "暂无数据",
-  "usage.pieAria": "模型使用率"
+  "usage.pieAria": "模型使用率",
+  "cache.title": "翻译缓存",
+  "cache.description": "按翻译模式与目标语言查看缓存条目。",
+  "cache.selectLanguage": "请选择目标语言。",
+  "cache.contextPlaceholder": "上下文模式缓存暂未实现。",
+  "cache.entryCount": "{count} 条",
+  "cache.noTranslation": "不翻译",
+  "cache.sort.sourceText": "原文排序",
+  "cache.sort.tid": "TID 排序",
+  "cache.columns.tid": "TID",
+  "cache.columns.source": "原文",
+  "cache.columns.result": "译文",
+  "cache.monitorTitle": "翻译缓存条目"
 }

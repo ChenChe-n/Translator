@@ -2,6 +2,7 @@
   "app.tabs.monitor": "Monitor",
   "app.tabs.config": "Config",
   "app.tabs.api": "API",
+  "app.tabs.cache": "Cache",
   "app.navAria": "Page selection",
   "common.clear": "Clear",
   "common.clearConfirm": "Clear the data on this page?",
@@ -117,5 +118,17 @@
   "usage.retentionBefore": "Keep",
   "usage.retentionAfter": "days",
   "usage.empty": "No data",
-  "usage.pieAria": "Model usage share"
+  "usage.pieAria": "Model usage share",
+  "cache.title": "Translation cache",
+  "cache.description": "View cached entries by translation mode and target language.",
+  "cache.selectLanguage": "Choose a target language.",
+  "cache.contextPlaceholder": "Context mode cache is not implemented yet.",
+  "cache.entryCount": "{count} entries",
+  "cache.noTranslation": "No translation",
+  "cache.sort.sourceText": "Source order",
+  "cache.sort.tid": "TID order",
+  "cache.columns.tid": "TID",
+  "cache.columns.source": "Source",
+  "cache.columns.result": "Result",
+  "cache.monitorTitle": "Translation cache entries"
 }
