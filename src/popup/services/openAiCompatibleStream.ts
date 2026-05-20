@@ -1,3 +1,5 @@
+import { readSseContent } from './sseContentReader';
+
 /**
  * 读取 OpenAI 兼容接口的 SSE 文本输出。
  *
@@ -29,7 +31,7 @@ export async function readChatStreamContent(
       }
 
       buffer += decoder.decode(value, { stream: true });
-      const parsed = parseStreamBuffer(buffer);
+      const parsed = readSseContent(buffer);
       buffer = parsed.rest;
       content += parsed.content;
       if (parsed.content) {
@@ -38,7 +40,7 @@ export async function readChatStreamContent(
     }
 
     buffer += decoder.decode();
-    const parsed = parseStreamBuffer(`${buffer}\n`);
+    const parsed = readSseContent(`${buffer}\n\n`);
     content += parsed.content;
     if (parsed.content) {
       await onContent?.(content);
@@ -46,49 +48,5 @@ export async function readChatStreamContent(
     return content;
   } finally {
     release();
-  }
-}
-
-function parseStreamBuffer(buffer: string): {
-  content: string;
-  rest: string;
-} {
-  let content = '';
-  const lines = buffer.split('\n');
-  const rest = lines.pop() ?? '';
-
-  for (const line of lines) {
-    if (!line.startsWith('data: ')) {
-      continue;
-    }
-
-    const payload = line.slice(6).trim();
-
-    if (payload === '[DONE]') {
-      continue;
-    }
-
-    content += readStreamDelta(payload);
-  }
-
-  return {
-    content,
-    rest,
-  };
-}
-
-function readStreamDelta(payload: string): string {
-  try {
-    const data = JSON.parse(payload) as {
-      choices?: Array<{
-        delta?: {
-          content?: string;
-        };
-      }>;
-    };
-
-    return data.choices?.[0]?.delta?.content ?? '';
-  } catch {
-    return '';
   }
 }

@@ -1,5 +1,7 @@
 import { normalizeTranslationTextLiteral } from './translationResultNormalizer';
 
+export { readSseContent } from './sseContentReader';
+
 /**
  * 解析聊天响应中的 JSONL 翻译结果。
  *
@@ -70,23 +72,6 @@ export function parseCompleteTranslationResults(
 ): void {
   parseJsonlLines(`${content}\n`, idSet, onResult);
   tryParseJsonLikeContent(content, idSet, onResult);
-}
-
-/**
- * 读取 SSE 内容片段。
- *
- * @param buffer SSE 缓冲。
- * @returns 模型文本内容与剩余缓冲。
- */
-export function readSseContent(buffer: string): { content: string; rest: string } {
-  const chunks = buffer.split('\n\n');
-  const rest = chunks.pop() ?? '';
-  const content = chunks.map(readSseChunkContent).join('');
-
-  return {
-    content,
-    rest,
-  };
 }
 
 function parseJsonlLine(line: string, idSet: Set<string>, onResult: (tid: string, text: string | null) => void): void {
@@ -223,34 +208,6 @@ function normalizeJsonlLine(line: string): string {
     .replace(/^data:\s*/, '')
     .replace(/,$/, '')
     .trim();
-}
-
-function readSseChunkContent(chunk: string): string {
-  return chunk
-    .split('\n')
-    .filter((line) => line.startsWith('data: '))
-    .map((line) => readStreamDelta(line.slice(6).trim()))
-    .join('');
-}
-
-function readStreamDelta(payload: string): string {
-  if (!payload || payload === '[DONE]') {
-    return '';
-  }
-
-  try {
-    const data = JSON.parse(payload) as {
-      choices?: Array<{
-        delta?: {
-          content?: string;
-        };
-      }>;
-    };
-
-    return data.choices?.[0]?.delta?.content ?? '';
-  } catch {
-    return '';
-  }
 }
 
 function readChatContent(data: unknown): string {
