@@ -4,25 +4,14 @@
       <ConfigTransferButtons @imported="handleConfigImported" />
       <PageClearButton @clear="handleClearPage" />
     </div>
-    <section class="config-block">
-      <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
-      <p class="block-description">{{ t('theme.panelDescription') }}</p>
-      <ThemeSchemeTabs
-        :schemes="themeState.schemes"
-        :active-scheme-id="themeState.activeSchemeId"
-        @create="handleCreateScheme"
-        @remove="handleRemoveScheme"
-        @select="handleSelectScheme"
-      />
-      <section v-if="schemeExpanded" class="scheme-shell" :aria-label="t('theme.panelAria')">
-        <ThemeColorEditor
-          v-if="activeScheme"
-          :colors="activeColors"
-          :readonly="activeScheme.kind !== 'custom'"
-          @update="handleColorUpdate"
-        />
-      </section>
-    </section>
+    <ThemeConfigBlock
+      :state="themeState"
+      :expanded="schemeExpanded"
+      @create="handleCreateScheme"
+      @remove="handleRemoveScheme"
+      @select="handleSelectScheme"
+      @update-colors="handleColorUpdate"
+    />
     <TranslationModeTabs
       v-model:active-mode="activeTranslationMode"
       :config-map="translationModeConfigMap"
@@ -63,15 +52,14 @@
 
 <script setup lang="ts">
 import { ElMessage, ElOption, ElSelect } from 'element-plus';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
 import ConfigTransferButtons from '../components/config/ConfigTransferButtons.vue';
 import PageClearButton from '../components/common/PageClearButton.vue';
 import TextParseModeTabs from '../components/config/TextParseModeTabs.vue';
+import ThemeConfigBlock from '../components/config/ThemeConfigBlock.vue';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
 import UpdateScopeTabs from '../components/config/UpdateScopeTabs.vue';
-import ThemeColorEditor from '../components/theme/ThemeColorEditor.vue';
-import ThemeSchemeTabs from '../components/theme/ThemeSchemeTabs.vue';
 import { useI18n } from '../composables/useI18n';
 import { useThemeScheme } from '../composables/useThemeScheme';
 import { applyThemeColors, resolveThemeColors } from '../services/themeRuntime';
@@ -115,12 +103,6 @@ const activeTextParseMode = ref<TextParseModeKey>('visible');
 const translationModeConfigMap = reactive<TranslationModeConfigMap>(createDefaultTranslationModeConfigMap());
 const textParseModeConfigMap = reactive<TextParseModeConfigMap>(createDefaultTextParseModeConfigMap());
 const runtimeSettings = reactive<RuntimeSettings>(createDefaultRuntimeSettings());
-
-const activeScheme = computed(() =>
-  themeState.schemes.find((item) => item.id === themeState.activeSchemeId) ?? themeState.schemes[0],
-);
-
-const activeColors = computed(() => (activeScheme.value ? resolveThemeColors(activeScheme.value) : themeState.schemes[0].colors));
 
 onMounted(async () => {
   const [translationModeConfig, textParseModeConfig, nextRuntimeSettings, nextTranslationMode] = await Promise.all([
@@ -170,11 +152,13 @@ async function handleSelectScheme(id: string): Promise<void> {
 }
 
 async function handleColorUpdate(colors: ThemeColors): Promise<void> {
-  if (!activeScheme.value || activeScheme.value.kind === 'system') {
+  const activeScheme = themeState.schemes.find((item) => item.id === themeState.activeSchemeId) ?? themeState.schemes[0];
+
+  if (!activeScheme || activeScheme.kind === 'system') {
     return;
   }
 
-  activeScheme.value.colors = colors;
+  activeScheme.colors = colors;
   await save();
 }
 
@@ -210,7 +194,12 @@ async function handleConfigImported(configPackage: ExportedConfigPackage): Promi
   activeTranslationMode.value = configPackage.translationMode.activeMode;
   activeTextParseMode.value = configPackage.textParseMode.activeMode;
   collapsePanels();
-  applyThemeColors(activeColors.value);
+  applyThemeColors(readActiveThemeColors());
+}
+
+function readActiveThemeColors(): ThemeColors {
+  const activeScheme = themeState.schemes.find((item) => item.id === themeState.activeSchemeId) ?? themeState.schemes[0];
+  return resolveThemeColors(activeScheme);
 }
 
 function collapsePanels(): void {
@@ -220,6 +209,12 @@ function collapsePanels(): void {
 }
 
 function handleSelectTranslationMode(mode: TranslationModeKey): void {
+  if (mode === 'context') {
+    translationModeExpanded.value = false;
+    ElMessage.info(t('translationMode.contextPlaceholder'));
+    return;
+  }
+
   if (activeTranslationMode.value === mode) {
     translationModeExpanded.value = !translationModeExpanded.value;
     return;
@@ -281,16 +276,6 @@ async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promis
 <style scoped>
 .page-shell {
   gap: 12px;
-}
-
-.scheme-shell {
-  display: grid;
-  gap: 12px;
-  padding: 12px;
-  border: 1px solid var(--translator-border);
-  border-radius: 8px;
-  background: var(--translator-container);
-  box-shadow: 0 8px 20px var(--translator-shadow);
 }
 
 .language-panel {

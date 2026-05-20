@@ -176,6 +176,6 @@ export function getConfigStorageKeys(): string[] {
   ];
 }
 
-function normalizeTranslationMode(value: unknown): keyof TranslationModeConfigMap {
-  return value === 'context' ? 'context' : 'normal';
+function normalizeTranslationMode(_value: unknown): keyof TranslationModeConfigMap {
+  return 'normal';
 }

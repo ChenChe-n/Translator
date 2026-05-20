@@ -59,6 +59,7 @@
   "translationMode.description": "Configure parameters, options, and prompts for normal and context translation.",
   "translationMode.normal": "Normal",
   "translationMode.context": "Context",
+  "translationMode.contextPlaceholder": "Placeholder.",
   "translationMode.temperature": "Temperature",
   "translationMode.maxTokens": "Max tokens",
   "translationMode.batchMaxItems": "Max batch items",

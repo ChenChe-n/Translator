@@ -188,6 +188,6 @@ function isParagraphInputEnabled(
   return mode === 'normal' && Boolean(config?.options?.paragraphInput);
 }
 
-function normalizeMode(value: unknown): TranslationModeKey {
-  return value === 'context' ? 'context' : 'normal';
+function normalizeMode(_value: unknown): TranslationModeKey {
+  return 'normal';
 }

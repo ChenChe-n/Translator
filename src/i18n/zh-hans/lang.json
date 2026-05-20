@@ -59,6 +59,7 @@
   "translationMode.description": "配置普通翻译和上下文翻译的参数、选项与提示词。",
   "translationMode.normal": "普通模式",
   "translationMode.context": "上下文模式",
+  "translationMode.contextPlaceholder": "占位符",
   "translationMode.temperature": "温度",
   "translationMode.maxTokens": "最大 Token",
   "translationMode.batchMaxItems": "批次最大条目",
