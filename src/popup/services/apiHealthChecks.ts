@@ -9,6 +9,7 @@ interface ApiCheckTaskResult {
 
 export interface ApiHealthCheckOptions {
   isActive?: () => boolean;
+  shouldRecordUsage?: () => boolean;
 }
 
 type ApiCheckTask = (config: ApiConfig, options: RequestUsageOptions) => Promise<ApiCheckTaskResult>;
@@ -145,7 +146,7 @@ async function runCheck(
 
   try {
     const result = await definition.task(config, {
-      shouldRecordUsage: options.isActive,
+      shouldRecordUsage: () => options.isActive?.() !== false && options.shouldRecordUsage?.() !== false,
     });
     const durationMs = Math.round(performance.now() - startedAt);
 

@@ -39,6 +39,7 @@ export function useApiPageState() {
   const usageSettings = ref<UsageStatsSettings>({ retentionDays: 30 });
   const hoveredConfigId = ref<string>();
   let testGeneration = 0;
+  let usageGeneration = 0;
 
   const config = computed<ApiConfig>({
     get: () => getActiveConfig(),
@@ -75,6 +76,7 @@ export function useApiPageState() {
 
   async function handleClearPage(): Promise<void> {
     testGeneration += 1;
+    usageGeneration += 1;
     testing.value = false;
     const [nextConfigState, , , nextUsageSettings] = await Promise.all([
       clearApiConfigState(),
@@ -91,6 +93,13 @@ export function useApiPageState() {
     ElMessage.success(t('common.cleared'));
   }
 
+  async function handleClearUsageRecords(): Promise<void> {
+    usageGeneration += 1;
+    await clearModelDailyUsage();
+    modelUsage.value = [];
+    ElMessage.success(t('common.cleared'));
+  }
+
   async function handleImportApiConfig(state: ApiConfigState): Promise<void> {
     Object.assign(configState, state);
     configExpanded.value = false;
@@ -101,6 +110,7 @@ export function useApiPageState() {
 
   async function handleRunChecks(): Promise<void> {
     const generation = testGeneration + 1;
+    const usageRecordGeneration = usageGeneration;
     testGeneration = generation;
     testing.value = true;
     const testingConfig = { ...config.value };
@@ -111,7 +121,10 @@ export function useApiPageState() {
       await saveConfigState();
       await cacheCheckResults(testingConfigId, createDefaultApiCheckResults());
 
-      for await (const result of runApiHealthChecks(testingConfig, { isActive: () => generation === testGeneration })) {
+      for await (const result of runApiHealthChecks(testingConfig, {
+        isActive: () => generation === testGeneration,
+        shouldRecordUsage: () => generation === testGeneration && usageRecordGeneration === usageGeneration,
+      })) {
         if (generation !== testGeneration) {
           return;
         }
@@ -267,6 +280,7 @@ export function useApiPageState() {
     configExpanded,
     configState,
     handleClearPage,
+    handleClearUsageRecords,
     handleConfigHover,
     handleCreateConfig,
     handleImportApiConfig,

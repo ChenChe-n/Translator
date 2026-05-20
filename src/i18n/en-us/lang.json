@@ -136,6 +136,7 @@
   "monitor.modelCallError": "Error",
   "monitor.emptyModelCalls": "No model call records",
   "usage.title": "Model token usage",
+  "usage.clearRecords": "Clear usage records",
   "usage.retentionBefore": "Keep",
   "usage.retentionAfter": "days",
   "usage.empty": "No data",

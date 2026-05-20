@@ -136,6 +136,7 @@
   "monitor.modelCallError": "错误",
   "monitor.emptyModelCalls": "暂无大模型调用记录",
   "usage.title": "模型 token 使用统计",
+  "usage.clearRecords": "清空使用记录",
   "usage.retentionBefore": "保留",
   "usage.retentionAfter": "天",
   "usage.empty": "暂无数据",

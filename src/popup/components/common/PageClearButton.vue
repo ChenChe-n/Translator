@@ -7,7 +7,7 @@
       @confirm="$emit('clear')"
     >
       <template #reference>
-        <ElButton size="small" plain>{{ t('common.clear') }}</ElButton>
+        <ElButton size="small" plain>{{ label || t('common.clear') }}</ElButton>
       </template>
     </ElPopconfirm>
   </div>
@@ -16,6 +16,10 @@
 <script setup lang="ts">
 import { ElButton, ElPopconfirm } from 'element-plus';
 import { useI18n } from '../../composables/useI18n';
+
+defineProps<{
+  label?: string;
+}>();
 
 defineEmits<{
   clear: [];

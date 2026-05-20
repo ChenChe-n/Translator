@@ -2,7 +2,10 @@
   <section class="page-shell" :aria-label="t('app.tabs.api')">
     <div class="page-action-row">
       <ApiTransferButtons @imported="handleImportApiConfig" />
-      <PageClearButton @clear="handleClearPage" />
+      <div class="api-clear-actions">
+        <PageClearButton :label="t('usage.clearRecords')" @clear="handleClearUsageRecords" />
+        <PageClearButton @clear="handleClearPage" />
+      </div>
     </div>
     <section class="config-block">
       <h2 class="block-title">{{ t('api.models.title') }}</h2>
@@ -55,6 +58,7 @@ const {
   handleClearPage,
   handleConfigHover,
   handleCreateConfig,
+  handleClearUsageRecords,
   handleImportApiConfig,
   handleRemoveConfig,
   handleRetentionChange,
@@ -97,4 +101,8 @@ const {
   height: 38px;
 }
 
+.api-clear-actions {
+  display: inline-flex;
+  gap: 8px;
+}
 </style>
