@@ -11,9 +11,12 @@ import { createModelCallLog, updateModelCallLog } from './modelCallLogStorage';
  * @returns 调用记录。
  */
 export async function createRequestLog(config: ApiConfig, body: Record<string, unknown>): Promise<ModelCallLog> {
+  const input = JSON.stringify(createChatRequestPayload(config, body), null, 2);
+
   return createModelCallLog({
     model: config.model,
-    input: JSON.stringify(createChatRequestPayload(config, body), null, 2),
+    input,
+    requestTokens: estimateTokenCount(input),
   });
 }
 
@@ -28,6 +31,7 @@ export async function createRequestLog(config: ApiConfig, body: Record<string, u
 export async function updateRequestOutput(callLog: ModelCallLog, output: string, finished = false): Promise<void> {
   await updateModelCallLog(callLog.id, {
     output,
+    responseTokens: estimateTokenCount(output),
     status: finished ? 'finished' : 'running',
   });
 }
@@ -44,4 +48,8 @@ export async function failRequestLog(callLog: ModelCallLog, error: unknown): Pro
     status: 'error',
     errorMessage: error instanceof Error ? error.message : String(error),
   });
+}
+
+function estimateTokenCount(content: string): number {
+  return Math.max(0, Math.round(content.trim().length / 4));
 }

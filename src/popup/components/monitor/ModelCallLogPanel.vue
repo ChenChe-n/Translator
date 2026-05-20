@@ -9,18 +9,49 @@
       <article v-for="log in orderedLogs" :key="log.id" class="call-item">
         <button class="summary-row" type="button" @click="toggleExpanded(log.id)">
           <span class="model-name">{{ log.model || '-' }}</span>
-          <span class="call-time">{{ formatDateTime(log.createdAt) }}</span>
-          <span class="token-count">{{ formatTokenCount(log) }}</span>
-          <span class="status-pill" :class="log.status">{{ formatStatus(log) }}</span>
+          <span class="call-time">{{ formatFullDateTime(log.createdAt) }}</span>
+          <span class="token-count">{{ formatTokenSummary(log) }}</span>
+          <span class="duration-text">{{ formatDuration(log) }}</span>
+          <span class="status-pill" :class="statusClass(log)">{{ formatStatus(log) }}</span>
         </button>
-        <div v-if="expandedIds.has(log.id)" class="payload-grid">
+        <div v-if="expandedIds.has(log.id)" class="call-detail">
+          <dl class="meta-grid">
+            <div>
+              <dt>{{ t('monitor.modelCallId') }}</dt>
+              <dd>{{ log.id }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('monitor.modelCallCreatedAt') }}</dt>
+              <dd>{{ formatFullDateTime(log.createdAt) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('monitor.modelCallUpdatedAt') }}</dt>
+              <dd>{{ formatFullDateTime(log.updatedAt) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('monitor.modelCallDuration') }}</dt>
+              <dd>{{ formatDuration(log) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('monitor.modelCallInputTokens') }}</dt>
+              <dd>{{ readRequestTokens(log) }}</dd>
+            </div>
+            <div>
+              <dt>{{ t('monitor.modelCallOutputTokens') }}</dt>
+              <dd>{{ readResponseTokens(log) }}</dd>
+            </div>
+          </dl>
+          <section v-if="log.errorMessage" class="payload-box">
+            <span class="payload-label">{{ t('monitor.modelCallErrorDetail') }}</span>
+            <pre>{{ log.errorMessage }}</pre>
+          </section>
           <section class="payload-box">
-            <span class="payload-label">{{ t('monitor.modelCallInput') }}</span>
+            <span class="payload-label">{{ t('monitor.modelCallRequest') }}</span>
             <pre>{{ log.input }}</pre>
           </section>
           <section class="payload-box">
-            <span class="payload-label">{{ t('monitor.modelCallOutput') }}</span>
-            <pre>{{ log.output || log.errorMessage || '' }}</pre>
+            <span class="payload-label">{{ t('monitor.modelCallResponse') }}</span>
+            <pre>{{ log.output || '' }}</pre>
           </section>
         </div>
       </article>
@@ -44,28 +75,31 @@ const orderedLogs = computed(() => [...props.logs].sort((a, b) => b.createdAt - 
 
 function toggleExpanded(id: string): void {
   const nextIds = new Set(expandedIds.value);
-
-  if (nextIds.has(id)) {
-    nextIds.delete(id);
-  } else {
-    nextIds.add(id);
-  }
-
+  nextIds.has(id) ? nextIds.delete(id) : nextIds.add(id);
   expandedIds.value = nextIds;
 }
 
-function formatDateTime(value: number): string {
+function formatFullDateTime(value: number): string {
   return new Intl.DateTimeFormat(undefined, {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
     month: '2-digit',
     second: '2-digit',
+    year: 'numeric',
   }).format(new Date(value));
 }
 
-function formatTokenCount(log: ModelCallLog): string {
-  return t('monitor.modelCallTokens', { count: estimateTokenCount(log.input) + estimateTokenCount(log.output) });
+function formatTokenSummary(log: ModelCallLog): string {
+  return t('monitor.modelCallTokenSummary', {
+    input: readRequestTokens(log),
+    output: readResponseTokens(log),
+  });
+}
+
+function formatDuration(log: ModelCallLog): string {
+  const duration = log.durationMs ?? Math.max(0, log.updatedAt - log.createdAt);
+  return t('monitor.modelCallDurationMs', { count: duration });
 }
 
 function formatStatus(log: ModelCallLog): string {
@@ -73,7 +107,27 @@ function formatStatus(log: ModelCallLog): string {
     return t('monitor.modelCallError');
   }
 
+  if (isStaleRunning(log)) {
+    return t('monitor.modelCallStaleRunning');
+  }
+
   return log.status === 'finished' ? t('monitor.modelCallFinished') : t('monitor.modelCallRunning');
+}
+
+function statusClass(log: ModelCallLog): string {
+  return isStaleRunning(log) ? 'stale' : log.status;
+}
+
+function isStaleRunning(log: ModelCallLog): boolean {
+  return log.status === 'running' && Date.now() - log.updatedAt > 60_000;
+}
+
+function readRequestTokens(log: ModelCallLog): number {
+  return log.requestTokens ?? estimateTokenCount(log.input);
+}
+
+function readResponseTokens(log: ModelCallLog): number {
+  return log.responseTokens ?? estimateTokenCount(log.output);
 }
 
 function estimateTokenCount(content: string): number {
@@ -91,14 +145,6 @@ function estimateTokenCount(content: string): number {
   background: var(--translator-container);
 }
 
-.call-head,
-.summary-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
-
 .panel-title {
   margin: 0;
   color: var(--translator-text);
@@ -106,9 +152,10 @@ function estimateTokenCount(content: string): number {
   font-weight: 600;
 }
 
-.call-list {
+.call-list,
+.call-detail {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .call-item {
@@ -121,6 +168,10 @@ function estimateTokenCount(content: string): number {
 }
 
 .summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
   min-width: 0;
   padding: 0;
@@ -130,30 +181,36 @@ function estimateTokenCount(content: string): number {
   text-align: left;
 }
 
-.model-name {
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 96px;
-  overflow: hidden;
-  color: var(--translator-text);
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.call-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.call-time {
-  flex: 0 0 auto;
-  color: var(--translator-muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
+.call-time,
+.duration-text,
 .token-count {
   flex: 0 0 auto;
   color: var(--translator-muted);
   font-size: 11px;
   white-space: nowrap;
+}
+
+.model-name,
+.meta-grid dd {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 96px;
+  color: var(--translator-text);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .status-pill {
@@ -177,10 +234,30 @@ function estimateTokenCount(content: string): number {
   background: #ef4444;
 }
 
-.payload-grid {
+.status-pill.stale {
+  background: #f59e0b;
+}
+
+.meta-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 8px;
+  margin: 0;
+}
+
+.meta-grid div {
+  min-width: 0;
+}
+
+.meta-grid dt {
+  color: var(--translator-muted);
+  font-size: 11px;
+}
+
+.meta-grid dd {
+  margin: 2px 0 0;
+  color: var(--translator-text);
+  font-size: 11px;
 }
 
 .payload-box {
@@ -195,7 +272,7 @@ function estimateTokenCount(content: string): number {
 }
 
 pre {
-  height: 86px;
+  max-height: 240px;
   margin: 0;
   overflow: auto;
   padding: 8px;
@@ -207,5 +284,15 @@ pre {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+@media (max-width: 520px) {
+  .summary-row {
+    flex-wrap: wrap;
+  }
+
+  .meta-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

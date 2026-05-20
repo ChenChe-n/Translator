@@ -2,6 +2,7 @@ import type { CreateModelCallLogInput, ModelCallLog, UpdateModelCallLogInput } f
 
 export const MODEL_CALL_LOG_KEY = 'Translator.modelCallLogs';
 const maxLogCount = 50;
+let writeQueue = Promise.resolve();
 
 /**
  * 读取大模型调用记录。
@@ -33,9 +34,10 @@ export async function createModelCallLog(input: CreateModelCallLogInput): Promis
     status: 'running',
     createdAt: now,
     updatedAt: now,
+    requestTokens: input.requestTokens,
   };
 
-  await saveLogs([...(await loadModelCallLogs()), log]);
+  await mutateLogs((logs) => [...logs, log]);
   return log;
 }
 
@@ -47,8 +49,7 @@ export async function createModelCallLog(input: CreateModelCallLogInput): Promis
  * @returns 无返回值。
  */
 export async function updateModelCallLog(id: string, input: UpdateModelCallLogInput): Promise<void> {
-  const logs = await loadModelCallLogs();
-  await saveLogs(logs.map((item) => (item.id === id ? normalizeLog({ ...item, ...input, updatedAt: Date.now() }) : item)));
+  await mutateLogs((logs) => logs.map((item) => (item.id === id ? mergeLogUpdate(item, input) : item)));
 }
 
 /**
@@ -83,21 +84,54 @@ async function saveLogs(logs: ModelCallLog[]): Promise<void> {
   });
 }
 
+async function mutateLogs(mutator: (logs: ModelCallLog[]) => ModelCallLog[]): Promise<void> {
+  writeQueue = writeQueue.catch(() => undefined).then(async () => {
+    await saveLogs(mutator(await loadModelCallLogs()));
+  });
+  await writeQueue;
+}
+
 function normalizeLogs(logs: ModelCallLog[] | undefined): ModelCallLog[] {
   return (logs ?? []).map(normalizeLog).sort((a, b) => a.createdAt - b.createdAt).slice(-maxLogCount);
 }
 
 function normalizeLog(log: ModelCallLog): ModelCallLog {
+  const createdAt = Number.isFinite(log.createdAt) ? log.createdAt : Date.now();
+  const updatedAt = Number.isFinite(log.updatedAt) ? log.updatedAt : createdAt;
+
   return {
     id: log.id || `model-call-${Date.now()}`,
     model: log.model || '',
     input: log.input || '',
     output: log.output || '',
     status: normalizeStatus(log.status),
-    createdAt: Number.isFinite(log.createdAt) ? log.createdAt : Date.now(),
-    updatedAt: Number.isFinite(log.updatedAt) ? log.updatedAt : Date.now(),
+    createdAt,
+    updatedAt,
+    requestTokens: readOptionalNumber(log.requestTokens),
+    responseTokens: readOptionalNumber(log.responseTokens),
+    durationMs: normalizeStatus(log.status) === 'running' ? undefined : Math.max(0, updatedAt - createdAt),
     errorMessage: log.errorMessage,
   };
+}
+
+function mergeLogUpdate(log: ModelCallLog, input: UpdateModelCallLogInput): ModelCallLog {
+  const keepFinalStatus = shouldKeepFinalStatus(log, input);
+  const updatedAt = Date.now();
+
+  return normalizeLog({
+    ...log,
+    ...(keepFinalStatus ? {} : input),
+    status: keepFinalStatus ? log.status : input.status ?? log.status,
+    updatedAt,
+  });
+}
+
+function shouldKeepFinalStatus(log: ModelCallLog, input: UpdateModelCallLogInput): boolean {
+  return (log.status === 'finished' || log.status === 'error') && input.status === 'running';
+}
+
+function readOptionalNumber(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
 }
 
 function normalizeStatus(status: ModelCallLog['status']): ModelCallLog['status'] {

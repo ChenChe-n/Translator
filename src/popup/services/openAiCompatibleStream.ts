@@ -12,6 +12,7 @@ export async function readChatStreamContent(
   response: Response,
   onContent?: (content: string) => void | Promise<void>,
   release: () => void = () => undefined,
+  onRawChunk?: (content: string) => void | Promise<void>,
 ): Promise<string> {
   try {
     const reader = response.body?.getReader();
@@ -30,7 +31,9 @@ export async function readChatStreamContent(
         break;
       }
 
-      buffer += decoder.decode(value, { stream: true });
+      const chunk = decoder.decode(value, { stream: true });
+      await onRawChunk?.(chunk);
+      buffer += chunk;
       const parsed = readSseContent(buffer);
       buffer = parsed.rest;
       content += parsed.content;
@@ -39,7 +42,9 @@ export async function readChatStreamContent(
       }
     }
 
-    buffer += decoder.decode();
+    const tail = decoder.decode();
+    await onRawChunk?.(tail);
+    buffer += tail;
     const parsed = readSseContent(`${buffer}\n\n`);
     content += parsed.content;
     if (parsed.content) {

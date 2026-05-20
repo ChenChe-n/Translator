@@ -14,6 +14,9 @@ export interface ModelCallLog {
   status: ModelCallStatus;
   createdAt: number;
   updatedAt: number;
+  requestTokens?: number;
+  responseTokens?: number;
+  durationMs?: number;
   errorMessage?: string;
 }
 
@@ -23,6 +26,7 @@ export interface ModelCallLog {
 export interface CreateModelCallLogInput {
   model: string;
   input: string;
+  requestTokens?: number;
 }
 
 /**
@@ -30,6 +34,7 @@ export interface CreateModelCallLogInput {
  */
 export interface UpdateModelCallLogInput {
   output?: string;
+  responseTokens?: number;
   status?: ModelCallStatus;
   errorMessage?: string;
 }

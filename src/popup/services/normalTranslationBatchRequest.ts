@@ -134,6 +134,7 @@ async function readStreamBatchResults(
   idSet: Set<string>,
 ): Promise<void> {
   let streamOutput = '';
+  let rawOutput = '';
 
   await readJsonlTranslationStream({
     idSet,
@@ -147,12 +148,15 @@ async function readStreamBatchResults(
     },
     onContent: async (content) => {
       streamOutput += content;
-      await updateRequestOutput(responseInfo.callLog, streamOutput);
+    },
+    onRawChunk: async (chunk) => {
+      rawOutput += chunk;
+      await updateRequestOutput(responseInfo.callLog, rawOutput);
     },
   });
   ensureNonEmptyStreamOutput(streamOutput);
   ensureCompleteTranslationResults(results, idSet);
-  await updateRequestOutput(responseInfo.callLog, streamOutput, true);
+  await updateRequestOutput(responseInfo.callLog, rawOutput || streamOutput, true);
   await recordTranslationUsage(batch[0].apiConfig, body, streamOutput);
 }
 
@@ -165,7 +169,7 @@ async function readJsonBatchResults(
 ): Promise<void> {
   const responseData = await readJsonResponse(responseInfo.response, responseInfo.release);
   const content = readChatContent(responseData);
-  await updateRequestOutput(responseInfo.callLog, content, true);
+  await updateRequestOutput(responseInfo.callLog, JSON.stringify(responseData, null, 2), true);
   await recordTranslationUsage(apiConfig, body, content, responseData);
   parseChatJsonlResults(responseData, idSet).forEach((text, tid) => results.set(tid, text));
 }

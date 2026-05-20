@@ -162,11 +162,14 @@ export async function requestStream(config: ApiConfig, prompt: string, options: 
 
   try {
     const chatResponse = await requestChat(config, body);
+    let rawOutput = '';
     const content = await readChatStreamContent(chatResponse.response, async (nextContent) => {
       options.onContent?.(nextContent);
-      await updateRequestOutput(callLog, nextContent);
-    }, chatResponse.release);
-    await updateRequestOutput(callLog, content, true);
+    }, chatResponse.release, async (chunk) => {
+      rawOutput += chunk;
+      await updateRequestOutput(callLog, rawOutput);
+    });
+    await updateRequestOutput(callLog, rawOutput || content, true);
     if (shouldRecordUsage(options.shouldRecordUsage)) {
       await recordUsage(config, inputTokens, content);
     }
@@ -211,7 +214,7 @@ async function readAndRecordChatContent(
   try {
     const data = (await response.json()) as ChatResponse;
     const content = data.choices?.[0]?.message?.content ?? '';
-    await updateRequestOutput(callLog, content, true);
+    await updateRequestOutput(callLog, JSON.stringify(data, null, 2), true);
     if (shouldRecordUsage(shouldRecordUsageCallback)) {
       await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
     }

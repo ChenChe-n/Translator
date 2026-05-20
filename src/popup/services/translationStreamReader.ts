@@ -3,6 +3,7 @@ import { parseCompleteTranslationResults, parseTranslationResults, readSseConten
 export interface TranslationStreamReaderOptions {
   idSet: Set<string>;
   onContent: (content: string) => void | Promise<void>;
+  onRawChunk?: (content: string) => void | Promise<void>;
   onResult: (tid: string, text: string | null) => void;
   release: () => void;
   response: Response;
@@ -39,7 +40,9 @@ async function readStream(options: TranslationStreamReaderOptions): Promise<void
       break;
     }
 
-    eventBuffer += decoder.decode(value, { stream: true });
+    const chunk = decoder.decode(value, { stream: true });
+    await options.onRawChunk?.(chunk);
+    eventBuffer += chunk;
     const parsed = readSseContent(eventBuffer);
     eventBuffer = parsed.rest;
     if (parsed.content) {
@@ -48,7 +51,9 @@ async function readStream(options: TranslationStreamReaderOptions): Promise<void
     jsonlBuffer = parseTranslationResults(`${jsonlBuffer}${parsed.content}`, options.idSet, options.onResult);
   }
 
-  const parsed = readSseContent(`${eventBuffer}${decoder.decode()}\n\n`);
+  const tail = decoder.decode();
+  await options.onRawChunk?.(tail);
+  const parsed = readSseContent(`${eventBuffer}${tail}\n\n`);
   if (parsed.content) {
     await options.onContent(parsed.content);
   }
