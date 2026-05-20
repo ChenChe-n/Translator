@@ -54,7 +54,7 @@ function buildRequestBody(
       },
       {
         role: 'user',
-        content: batch.map((item) => JSON.stringify({ [item.id]: item.text })).join('\n'),
+        content: createUniqueBatchItems(batch).map((item) => JSON.stringify({ [item.id]: item.text })).join('\n'),
       },
     ],
   };
@@ -156,12 +156,13 @@ function resolveMatched(
   tid: string,
   text: string | null,
 ): void {
-  const item = batch.find((pendingItem) => pendingItem.id === tid);
+  const matchedItems = batch.filter((pendingItem) => pendingItem.id === tid);
 
-  if (item) {
-    void writeCachedNormalTranslation(config, item.text, text, item.targetLanguage);
+  matchedItems.forEach((item) => {
+    void writeCachedNormalTranslation(config, item.text, text, item.targetLanguage)
+      .catch(() => undefined);
     item.resolve({ tid, text });
-  }
+  });
 }
 
 function isStreamResponse(response: Response): boolean {
@@ -188,6 +189,18 @@ async function writeBatchCache(
 function readChatContent(data: unknown): string {
   const response = data as { choices?: Array<{ message?: { content?: string } }>; };
   return response.choices?.[0]?.message?.content ?? '';
+}
+
+function createUniqueBatchItems(batch: NormalTranslationPendingItem[]): NormalTranslationPendingItem[] {
+  const itemMap = new Map<string, NormalTranslationPendingItem>();
+
+  batch.forEach((item) => {
+    if (!itemMap.has(item.id)) {
+      itemMap.set(item.id, item);
+    }
+  });
+
+  return [...itemMap.values()];
 }
 
 async function recordTranslationUsage(

@@ -13,6 +13,9 @@ export type { NormalTranslationInput, NormalTranslationResult } from '../types/n
 
 const queue: NormalTranslationPendingItem[] = [];
 const runningBatches = new Set<Promise<void>>();
+const inFlightTranslations = new Map<string, Promise<NormalTranslationResult>>();
+const pendingInFlightKeys = new WeakMap<NormalTranslationPendingItem, string>();
+const pendingPromises = new WeakMap<NormalTranslationPendingItem, Promise<NormalTranslationResult>>();
 let timer: number | undefined;
 
 /**
@@ -30,9 +33,11 @@ export async function translateNormalMode(
   input: NormalTranslationInput,
   targetLanguage: string,
 ): Promise<NormalTranslationResult> {
+  const tid = await createTranslationCacheKey(input.text);
+
   if (!(await loadRuntimeSettings()).translationEnabled) {
     return {
-      tid: await createTranslationCacheKey(input.text),
+      tid,
       text: null,
     };
   }
@@ -43,17 +48,87 @@ export async function translateNormalMode(
     return cachedResult;
   }
 
-  return new Promise((resolve, reject) => {
-    queue.push({
-      apiConfig,
-      config: modeConfig,
-      id: '',
-      targetLanguage,
-      text: input.text,
-      resolve,
-      reject,
-    });
-    scheduleBatchDispatch(modeConfig);
+  const inFlightKey = createInFlightKey(apiConfig, modeConfig, input.text, targetLanguage, tid);
+  const inFlightResult = inFlightTranslations.get(inFlightKey);
+
+  if (inFlightResult) {
+    return inFlightResult;
+  }
+
+  const nextResult = enqueueTranslation(apiConfig, modeConfig, input.text, targetLanguage, tid, inFlightKey);
+  inFlightTranslations.set(inFlightKey, nextResult);
+  return nextResult;
+}
+
+function enqueueTranslation(
+  apiConfig: NormalTranslationPendingItem['apiConfig'],
+  modeConfig: TranslationModeConfig,
+  text: string,
+  targetLanguage: string,
+  tid: string,
+  inFlightKey: string,
+): Promise<NormalTranslationResult> {
+  let resolveResult!: (result: NormalTranslationResult) => void;
+  let rejectResult!: (error: unknown) => void;
+
+  const result = new Promise<NormalTranslationResult>((resolve, reject) => {
+    resolveResult = resolve;
+    rejectResult = reject;
+  });
+  const item: NormalTranslationPendingItem = {
+    apiConfig,
+    config: modeConfig,
+    id: tid,
+    targetLanguage,
+    text,
+    resolve: resolveResult,
+    reject: rejectResult,
+  };
+
+  pendingInFlightKeys.set(item, inFlightKey);
+  pendingPromises.set(item, result);
+  queue.push(item);
+  scheduleBatchDispatch(modeConfig);
+  return result;
+}
+
+function createInFlightKey(
+  apiConfig: NormalTranslationPendingItem['apiConfig'],
+  modeConfig: TranslationModeConfig,
+  text: string,
+  targetLanguage: string,
+  tid: string,
+): string {
+  return JSON.stringify([
+    normalizeEndpoint(apiConfig.baseUrl),
+    apiConfig.model.trim(),
+    normalizeTargetLanguage(targetLanguage),
+    modeConfig.mode,
+    modeConfig.prompt,
+    modeConfig.parameters.temperature,
+    modeConfig.parameters.maxTokens,
+    modeConfig.options.preserveFormatting,
+    tid,
+    text,
+  ]);
+}
+
+function normalizeEndpoint(url: string): string {
+  return url.trim().replace(/\/+$/, '');
+}
+
+function normalizeTargetLanguage(targetLanguage: string): string {
+  return targetLanguage.trim().toLowerCase() || 'default';
+}
+
+function releaseBatchInFlightEntries(batch: NormalTranslationPendingItem[]): void {
+  batch.forEach((item) => {
+    const key = pendingInFlightKeys.get(item);
+    const promise = pendingPromises.get(item);
+
+    if (key && promise && inFlightTranslations.get(key) === promise) {
+      inFlightTranslations.delete(key);
+    }
   });
 }
 
@@ -86,7 +161,7 @@ async function dispatchReadyBatches(): Promise<void> {
     }
 
     await assignBatchIds(batch);
-    trackBatchRequest(requestNormalTranslationBatch(batch));
+    trackBatchRequest(requestNormalTranslationBatch(batch), batch);
   }
 
   if (queue.length > 0 && !timer) {
@@ -94,10 +169,11 @@ async function dispatchReadyBatches(): Promise<void> {
   }
 }
 
-function trackBatchRequest(request: Promise<void>): void {
+function trackBatchRequest(request: Promise<void>, batch: NormalTranslationPendingItem[]): void {
   runningBatches.add(request);
   request.finally(() => {
     runningBatches.delete(request);
+    releaseBatchInFlightEntries(batch);
     void dispatchReadyBatches();
   }).catch(() => undefined);
 }
@@ -146,6 +222,6 @@ function estimateTextTokens(text: string): number {
 
 async function assignBatchIds(batch: NormalTranslationPendingItem[]): Promise<void> {
   await Promise.all(batch.map(async (item) => {
-    item.id = await createTranslationCacheKey(item.text);
+    item.id = item.id || await createTranslationCacheKey(item.text);
   }));
 }
