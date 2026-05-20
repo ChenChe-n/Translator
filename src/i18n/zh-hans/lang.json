@@ -67,6 +67,7 @@
   "translationMode.prompt": "AI 提示词",
   "translationMode.preserveFormatting": "保留原文格式",
   "translationMode.enableCache": "启用缓存",
+  "translationMode.paragraphInput": "段落输入",
   "translationMode.showTranslatingMarker": "标记正在翻译文本",
   "textParseMode.title": "文本解析",
   "textParseMode.description": "选择页面文本解析方式，并为每种方式保存自动解析延迟。",

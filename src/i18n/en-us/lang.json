@@ -67,6 +67,7 @@
   "translationMode.prompt": "AI prompt",
   "translationMode.preserveFormatting": "Preserve formatting",
   "translationMode.enableCache": "Enable cache",
+  "translationMode.paragraphInput": "Paragraph input",
   "translationMode.showTranslatingMarker": "Mark translating text",
   "textParseMode.title": "Text parsing",
   "textParseMode.description": "Choose how page text is parsed and save the auto-parse delay for each mode.",

@@ -19,22 +19,22 @@ const languageNames: Record<string, string> = {
 const outputExamples: Record<string, string[]> = {
   'en-us': [
     '输入：',
-    '{"tid-a":"你好，世界"}',
-    '{"tid-b":"Hello"}',
+    '{"tid-a":"标题"}',
+    '  {"tid-b":"你好，世界"}',
     '{"tid-c":"OpenAI"}',
     '输出：',
-    '{"tid-a":"Hello world"}',
-    '{"tid-b":null}',
+    '{"tid-a":"Title"}',
+    '{"tid-b":"Hello world"}',
     '{"tid-c":null}',
   ],
   'zh-hans': [
     '输入：',
-    '{"tid-a":"Hello world"}',
-    '{"tid-b":"你好"}',
+    '{"tid-a":"Title"}',
+    '  {"tid-b":"Hello world"}',
     '{"tid-c":"OpenAI"}',
     '输出：',
-    '{"tid-a":"你好，世界"}',
-    '{"tid-b":null}',
+    '{"tid-a":"标题"}',
+    '{"tid-b":"你好，世界"}',
     '{"tid-c":null}',
   ],
 };
@@ -83,7 +83,7 @@ function buildRequestBody(
       },
       {
         role: 'user',
-        content: createUniqueBatchItems(batch).map((item) => JSON.stringify({ [item.id]: item.text })).join('\n'),
+        content: createUniqueBatchItems(batch).map(formatBatchItem).join('\n'),
       },
     ],
   };
@@ -258,6 +258,10 @@ function createUniqueBatchItems(batch: NormalTranslationPendingItem[]): NormalTr
   });
 
   return [...itemMap.values()];
+}
+
+function formatBatchItem(item: NormalTranslationPendingItem): string {
+  return `${'  '.repeat(Math.max(0, item.depth ?? 0))}${JSON.stringify({ [item.id]: item.text })}`;
 }
 
 async function recordTranslationUsage(

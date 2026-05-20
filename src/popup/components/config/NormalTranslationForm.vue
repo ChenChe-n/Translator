@@ -25,9 +25,10 @@
     <div class="parameter-row">
       <ElFormItem :label="t('translationMode.batchMaxItems')">
         <ElInputNumber
-          :model-value="config.parameters.batchMaxItems"
+          :model-value="config.options.paragraphInput ? 1 : config.parameters.batchMaxItems"
           :min="1"
           :max="1024"
+          :disabled="config.options.paragraphInput"
           controls-position="right"
           @change="handleBatchMaxItemsUpdate"
         />
@@ -68,6 +69,13 @@
       </ElCheckbox>
       <ElCheckbox v-if="showNormalOptions" :model-value="config.options.enableCache" @change="handleEnableCacheUpdate">
         {{ t('translationMode.enableCache') }}
+      </ElCheckbox>
+      <ElCheckbox
+        v-if="showNormalOptions"
+        :model-value="config.options.paragraphInput"
+        @change="handleParagraphInputUpdate"
+      >
+        {{ t('translationMode.paragraphInput') }}
       </ElCheckbox>
       <ElCheckbox
         v-if="showNormalOptions"
@@ -128,6 +136,19 @@ function handlePreserveFormattingUpdate(value: string | number | boolean): void 
 
 function handleEnableCacheUpdate(value: string | number | boolean): void {
   updateOptions({ enableCache: Boolean(value) });
+}
+
+function handleParagraphInputUpdate(value: string | number | boolean): void {
+  emit('update', {
+    parameters: {
+      ...props.config.parameters,
+      batchMaxItems: Boolean(value) ? 1 : props.config.parameters.batchMaxItems,
+    },
+    options: {
+      ...props.config.options,
+      paragraphInput: Boolean(value),
+    },
+  });
 }
 
 function handleShowTranslatingMarkerUpdate(value: string | number | boolean): void {

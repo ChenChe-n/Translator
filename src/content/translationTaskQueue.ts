@@ -2,7 +2,20 @@ import {
   markTranslatingText,
   unmarkTranslatingText,
 } from './textMarker';
-import type { ParsedTextReference, TextParseRuntimeConfig, TextReferenceOwner } from './textParseTypes';
+import { translateParagraphGroupAndWrite } from './paragraphTranslationWriter';
+import {
+  createTranslationTracker,
+  hasTranslated,
+  markTranslated,
+  unmarkTranslated,
+  type TranslationTracker,
+} from './translationReferenceState';
+import { isApiConfigReady, isReferenceWritable } from './translationReferenceUtils';
+import type {
+  ParsedParagraphGroup,
+  ParsedTextReference,
+  TextParseRuntimeConfig,
+} from './textParseTypes';
 import {
   createTextOverwriteState,
   restoreOverwrittenReferences,
@@ -14,35 +27,18 @@ const dispatchChunkSize = 512;
 let queueRunning = false;
 let queueGeneration = 0;
 
-/**
- * 已提交翻译的文本引用记录。
- */
-export interface TranslationTracker {
-  attributes: WeakMap<TextReferenceOwner, Set<string>>;
-  textNodes: WeakSet<Text>;
-}
-
 interface TranslationTask {
   generation: number;
   overwriteState: ReturnType<typeof createTextOverwriteState>;
-  reference: ParsedTextReference;
+  group?: ParsedParagraphGroup;
+  reference?: ParsedTextReference;
   runtimeConfig: TextParseRuntimeConfig;
   translatedReferences: TranslationTracker;
 }
 
 const translationQueue: TranslationTask[] = [];
 
-/**
- * 创建翻译引用追踪器。
- *
- * @returns 翻译引用追踪器。
- */
-export function createTranslationTracker(): TranslationTracker {
-  return {
-    attributes: new WeakMap<TextReferenceOwner, Set<string>>(),
-    textNodes: new WeakSet<Text>(),
-  };
-}
+export { createTranslationTracker };
 
 /**
  * 清空待调度的翻译队列。
@@ -78,6 +74,30 @@ export function queueTranslateReferences(
   runTranslationQueue();
 }
 
+/**
+ * 将段落上下文组加入普通翻译调度队列。
+ *
+ * @param groups 段落上下文组。
+ * @param runtimeConfig 文本解析运行配置。
+ * @param translatedReferences 已提交翻译的引用追踪器。
+ * @param overwriteState 翻译写入状态。
+ * @returns 无返回值。
+ */
+export function queueTranslateParagraphGroups(
+  groups: ParsedParagraphGroup[],
+  runtimeConfig: TextParseRuntimeConfig,
+  translatedReferences: TranslationTracker,
+  overwriteState: ReturnType<typeof createTextOverwriteState>,
+): void {
+  if (!runtimeConfig.runtimeSettings.translationEnabled || !isApiConfigReady(runtimeConfig)) {
+    restoreOverwrittenReferences(overwriteState);
+    return;
+  }
+
+  groups.forEach((group) => queueParagraphGroup(group, runtimeConfig, translatedReferences, overwriteState));
+  runTranslationQueue();
+}
+
 function queueReference(
   reference: ParsedTextReference,
   runtimeConfig: TextParseRuntimeConfig,
@@ -92,6 +112,33 @@ function queueReference(
   translationQueue.push({
     generation: queueGeneration,
     reference,
+    runtimeConfig,
+    translatedReferences,
+    overwriteState,
+  });
+}
+
+function queueParagraphGroup(
+  group: ParsedParagraphGroup,
+  runtimeConfig: TextParseRuntimeConfig,
+  translatedReferences: TranslationTracker,
+  overwriteState: ReturnType<typeof createTextOverwriteState>,
+): void {
+  const references = group.references
+    .map((item) => item.reference)
+    .filter((reference) => !hasTranslated(reference, translatedReferences) && isReferenceWritable(reference));
+
+  if (references.length === 0) {
+    return;
+  }
+
+  references.forEach((reference) => markTranslated(reference, translatedReferences));
+  translationQueue.push({
+    generation: queueGeneration,
+    group: {
+      ...group,
+      references: group.references.filter((item) => references.includes(item.reference)),
+    },
     runtimeConfig,
     translatedReferences,
     overwriteState,
@@ -139,7 +186,23 @@ function waitForIdleSlice(): Promise<void> {
 }
 
 async function translateAndWrite(task: TranslationTask): Promise<void> {
+  if (task.group) {
+    await translateParagraphGroupAndWrite(
+      task.group,
+      task.runtimeConfig,
+      task.generation,
+      () => queueGeneration,
+      task.translatedReferences,
+      task.overwriteState,
+    );
+    return;
+  }
+
   const { reference, runtimeConfig, translatedReferences, overwriteState } = task;
+
+  if (!reference) {
+    return;
+  }
 
   if (runtimeConfig.translationConfig.options.showTranslatingMarker) {
     markTranslatingText(reference, runtimeConfig.markerColor);
@@ -165,52 +228,4 @@ async function translateAndWrite(task: TranslationTask): Promise<void> {
   } finally {
     unmarkTranslatingText(reference);
   }
-}
-
-function isReferenceWritable(reference: ParsedTextReference): boolean {
-  return isReferenceConnected(reference) && readCurrentReferenceText(reference) === reference.text;
-}
-
-function isReferenceConnected(reference: ParsedTextReference): boolean {
-  return reference.owner.isConnected && (reference.kind === 'attribute' || reference.node.isConnected);
-}
-
-function readCurrentReferenceText(reference: ParsedTextReference): string {
-  if (reference.kind === 'text') {
-    return reference.node.nodeValue?.trim() ?? '';
-  }
-
-  return reference.owner.getAttribute(reference.attributeName)?.trim() ?? '';
-}
-
-function isApiConfigReady(runtimeConfig: TextParseRuntimeConfig): boolean {
-  return Boolean(runtimeConfig.apiConfig.baseUrl && runtimeConfig.apiConfig.apiKey && runtimeConfig.apiConfig.model);
-}
-
-function hasTranslated(reference: ParsedTextReference, tracker: TranslationTracker): boolean {
-  if (reference.kind === 'text') {
-    return tracker.textNodes.has(reference.node);
-  }
-
-  return tracker.attributes.get(reference.owner)?.has(reference.attributeName) ?? false;
-}
-
-function markTranslated(reference: ParsedTextReference, tracker: TranslationTracker): void {
-  if (reference.kind === 'text') {
-    tracker.textNodes.add(reference.node);
-    return;
-  }
-
-  const attributes = tracker.attributes.get(reference.owner) ?? new Set<string>();
-  attributes.add(reference.attributeName);
-  tracker.attributes.set(reference.owner, attributes);
-}
-
-function unmarkTranslated(reference: ParsedTextReference, tracker: TranslationTracker): void {
-  if (reference.kind === 'text') {
-    tracker.textNodes.delete(reference.node);
-    return;
-  }
-
-  tracker.attributes.get(reference.owner)?.delete(reference.attributeName);
 }

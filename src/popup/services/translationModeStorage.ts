@@ -9,6 +9,7 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   '你是翻译引擎。\n' +
   '目标语言：{TARGET_LOCALE}。格式要求：{FORMAT_MODE}。\n' +
   '输入是 JSONL，每行一个对象，每个对象只有一个 TID 键。\n' +
+  '输入行前的空格表示局部上下文层级。\n' +
   '输出也必须是 JSONL，每个输入行对应一个输出行，TID 必须完全不变。\n' +
   '除非整句已经是目标语言，或整句是领域关键词、专有名词、代码、数字、符号，否则都应该翻译。\n' +
   '整句无需翻译时输出 JSON null；不要输出“不翻译”等说明文字。\n' +
@@ -117,6 +118,7 @@ function createModeConfig(mode: TranslationModeKey, prompt: string): Translation
     options: {
       preserveFormatting: true,
       enableCache: mode === 'normal',
+      paragraphInput: false,
       showTranslatingMarker: false,
     },
   };
@@ -144,7 +146,9 @@ function normalizeModeConfig(
     parameters: {
       ...defaultConfig.parameters,
       ...config?.parameters,
-      batchMaxItems: normalizeNumber(config?.parameters?.batchMaxItems, 1, 1024, defaultConfig.parameters.batchMaxItems),
+      batchMaxItems: isParagraphInputEnabled(mode, config)
+        ? 1
+        : normalizeNumber(config?.parameters?.batchMaxItems, 1, 1024, defaultConfig.parameters.batchMaxItems),
       batchMaxTokens: normalizeNumber(config?.parameters?.batchMaxTokens, 1, 128000, defaultConfig.parameters.batchMaxTokens),
       batchWaitMs: normalizeNumber(config?.parameters?.batchWaitMs, 0, 60000, defaultConfig.parameters.batchWaitMs),
     },
@@ -152,6 +156,7 @@ function normalizeModeConfig(
       ...defaultConfig.options,
       ...config?.options,
       enableCache: mode === 'normal' ? config?.options?.enableCache ?? defaultConfig.options.enableCache : false,
+      paragraphInput: mode === 'normal' ? config?.options?.paragraphInput ?? defaultConfig.options.paragraphInput : false,
       showTranslatingMarker: mode === 'normal'
         ? config?.options?.showTranslatingMarker ?? defaultConfig.options.showTranslatingMarker
         : false,
@@ -161,6 +166,13 @@ function normalizeModeConfig(
 
 function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function isParagraphInputEnabled(
+  mode: TranslationModeKey,
+  config: Partial<TranslationModeConfig> | undefined,
+): boolean {
+  return mode === 'normal' && Boolean(config?.options?.paragraphInput);
 }
 
 function normalizeMode(value: unknown): TranslationModeKey {

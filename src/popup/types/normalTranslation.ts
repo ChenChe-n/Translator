@@ -22,7 +22,9 @@ export interface NormalTranslationResult {
 export interface NormalTranslationPendingItem {
   apiConfig: ApiConfig;
   config: TranslationModeConfig;
+  depth?: number;
   id: string;
+  promise?: Promise<NormalTranslationResult>;
   targetLanguage: string;
   text: string;
   resolve: (result: NormalTranslationResult) => void;

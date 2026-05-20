@@ -14,6 +14,22 @@ export type TextReferenceOwner = HTMLElement | SVGElement;
 export type ParsedTextReference = ParsedTextNodeReference | ParsedTextAttributeReference;
 
 /**
+ * 段落上下文文本引用。
+ */
+export interface ParsedParagraphReference {
+  depth: number;
+  reference: ParsedTextReference;
+}
+
+/**
+ * 段落上下文翻译组。
+ */
+export interface ParsedParagraphGroup {
+  id: string;
+  references: ParsedParagraphReference[];
+}
+
+/**
  * 已解析文本节点引用。
  */
 export interface ParsedTextNodeReference {

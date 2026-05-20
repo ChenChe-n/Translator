@@ -3,9 +3,10 @@ import {
   clearTextMarkers,
   clearTranslatingTextMarkers,
 } from './textMarker';
+import { scanParagraphGroups } from './paragraphTextScanner';
 import { scanTextReferences } from './textNodeScanner';
 import { loadTextParseRuntimeConfig } from './textParseConfig';
-import type { ParsedTextReference, TextParseRuntimeConfig } from './textParseTypes';
+import type { ParsedParagraphGroup, ParsedTextReference, TextParseRuntimeConfig } from './textParseTypes';
 import {
   createTextOverwriteState,
   overwriteTextReferences,
@@ -14,11 +15,17 @@ import {
 import {
   clearTranslationQueue,
   createTranslationTracker,
+  queueTranslateParagraphGroups,
   queueTranslateReferences,
 } from './translationTaskQueue';
 import { appendTextParseMetric } from '../popup/services/textParseMetricsStorage';
 
 const minimumDelayMs = 100;
+
+interface ScanResult {
+  paragraphGroups: ParsedParagraphGroup[];
+  references: ParsedTextReference[];
+}
 
 /**
  * 创建文本解析控制器。
@@ -82,8 +89,10 @@ export function createTextParseController(): { start: () => void } {
 
     try {
       const startedAt = performance.now();
+      const scanResult = scanText(config);
+      const nextReferences = scanResult.references;
       references.clear();
-      scanTextReferences(config).forEach((reference) => references.set(reference.id, reference));
+      nextReferences.forEach((reference) => references.set(reference.id, reference));
 
       if (config.activeConfig.options.showTextMarker) {
         applyTextMarkers([...references.values()], config.markerColor);
@@ -99,7 +108,7 @@ export function createTextParseController(): { start: () => void } {
         overwriteTextReferences([...references.values()], config.activeConfig.options.testText, testOverwriteState);
       } else {
         restoreOverwrittenReferences(testOverwriteState);
-        queueTranslateReferences([...references.values()], config, translatedReferences, translationOverwriteState);
+        queueScannedTranslations(config, scanResult, translatedReferences, translationOverwriteState);
       }
 
       await appendTextParseMetric({
@@ -141,6 +150,39 @@ export function createTextParseController(): { start: () => void } {
       void start();
     },
   };
+}
+
+function scanText(config: TextParseRuntimeConfig): ScanResult {
+  if (shouldUseParagraphInput(config)) {
+    const paragraphGroups = scanParagraphGroups(config);
+    return {
+      paragraphGroups,
+      references: paragraphGroups.flatMap((group) => group.references.map((item) => item.reference)),
+    };
+  }
+
+  return {
+    paragraphGroups: [],
+    references: scanTextReferences(config),
+  };
+}
+
+function queueScannedTranslations(
+  config: TextParseRuntimeConfig,
+  scanResult: ScanResult,
+  translatedReferences: ReturnType<typeof createTranslationTracker>,
+  translationOverwriteState: ReturnType<typeof createTextOverwriteState>,
+): void {
+  if (shouldUseParagraphInput(config)) {
+    queueTranslateParagraphGroups(scanResult.paragraphGroups, config, translatedReferences, translationOverwriteState);
+    return;
+  }
+
+  queueTranslateReferences(scanResult.references, config, translatedReferences, translationOverwriteState);
+}
+
+function shouldUseParagraphInput(config: TextParseRuntimeConfig): boolean {
+  return config.translationMode === 'normal' && config.translationConfig.options.paragraphInput;
 }
 
 function shouldReloadConfig(changes: Record<string, chrome.storage.StorageChange>): boolean {
