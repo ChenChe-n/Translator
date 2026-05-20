@@ -121,7 +121,7 @@ function getModelColor(model: string, colorMap: ReadonlyMap<string, string>): st
 }
 
 function getTotalTokens(item: ModelDailyUsage): number {
-  return item.inputTokens + item.outputTokens;
+  return item.inputTokens + item.cachedInputTokens + item.outputTokens;
 }
 
 function formatLocalDate(date: Date): string {

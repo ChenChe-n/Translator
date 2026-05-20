@@ -33,22 +33,13 @@
         @model-select="handleModelSelect"
       />
     </section>
-    <section class="chart-row">
-      <UsagePieChart
-        class="chart-main"
-        :items="totalRanking"
-        :active-model="activeModel"
-        :selected-model="selectedModel"
-        @model-hover="handleModelHover"
-        @model-select="handleModelSelect"
-      />
-      <UsageRanking
-        class="ranking-side"
-        :items="totalRanking"
-        :active-model="activeModel"
-        :selected-model="selectedModel"
-        @model-hover="handleModelHover"
-        @model-select="handleModelSelect"
+    <section class="detail-row">
+      <TokenDistributionPanel :items="distributionItems" />
+      <UsagePricePanel
+        :config="activeConfig"
+        :input-tokens="currentModelUsage.inputTokens"
+        :cached-input-tokens="currentModelUsage.cachedInputTokens"
+        :output-tokens="currentModelUsage.outputTokens"
       />
     </section>
   </section>
@@ -60,17 +51,18 @@ import { computed, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import {
   aggregateDailyUsage,
-  aggregateModelRanking,
   aggregateTodayRanking,
   createModelColorMap,
 } from '../../services/modelUsageAggregator';
 import { pruneUsage } from '../../services/modelUsageStorage';
-import type { ModelDailyUsage, UsageStatsSettings } from '../../types/api';
+import type { ApiConfig, ModelDailyUsage, UsageStatsSettings } from '../../types/api';
 import UsageBarChart from './UsageBarChart.vue';
-import UsagePieChart from './UsagePieChart.vue';
+import TokenDistributionPanel from './TokenDistributionPanel.vue';
 import UsageRanking from './UsageRanking.vue';
+import UsagePricePanel from './UsagePricePanel.vue';
 
 const props = defineProps<{
+  activeConfig: ApiConfig;
   usage: ModelDailyUsage[];
   settings: UsageStatsSettings;
 }>();
@@ -84,7 +76,18 @@ const scopedUsage = computed(() => pruneUsage(props.usage, props.settings.retent
 const colorMap = computed(() => createModelColorMap(scopedUsage.value));
 const dailyUsage = computed(() => aggregateDailyUsage(scopedUsage.value, colorMap.value));
 const todayRanking = computed(() => aggregateTodayRanking(scopedUsage.value, colorMap.value));
-const totalRanking = computed(() => aggregateModelRanking(scopedUsage.value, colorMap.value));
+const currentModel = computed(() => selectedModel.value ?? props.activeConfig.model);
+const currentModelUsage = computed(() => summarizeModelUsage(scopedUsage.value, currentModel.value));
+const distributionItems = computed(() => {
+  const usage = currentModelUsage.value;
+  const totalTokens = usage.inputTokens + usage.cachedInputTokens + usage.outputTokens;
+
+  return [
+    createDistributionItem('input', t('usage.inputTokens'), usage.inputTokens, totalTokens, 'var(--translator-model-0)'),
+    createDistributionItem('cachedInput', t('usage.cachedInputTokens'), usage.cachedInputTokens, totalTokens, 'var(--translator-model-1)'),
+    createDistributionItem('output', t('usage.outputTokens'), usage.outputTokens, totalTokens, 'var(--translator-model-2)'),
+  ];
+});
 const activeModel = ref<string>();
 const selectedModel = ref<string>();
 
@@ -98,6 +101,40 @@ function handleModelHover(model: string | undefined): void {
 
 function handleModelSelect(model: string): void {
   selectedModel.value = selectedModel.value === model ? undefined : model;
+}
+
+function summarizeModelUsage(usage: ModelDailyUsage[], model: string): {
+  cachedInputTokens: number;
+  inputTokens: number;
+  outputTokens: number;
+} {
+  return usage
+    .filter((item) => item.model === model)
+    .reduce((sum, item) => ({
+      cachedInputTokens: sum.cachedInputTokens + item.cachedInputTokens,
+      inputTokens: sum.inputTokens + item.inputTokens,
+      outputTokens: sum.outputTokens + item.outputTokens,
+    }), {
+      cachedInputTokens: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    });
+}
+
+function createDistributionItem(
+  key: string,
+  label: string,
+  tokens: number,
+  totalTokens: number,
+  color: string,
+): { color: string; key: string; label: string; percent: number; tokens: number } {
+  return {
+    color,
+    key,
+    label,
+    percent: totalTokens > 0 ? Math.round((tokens / totalTokens) * 1000) / 10 : 0,
+    tokens,
+  };
 }
 </script>
 
@@ -150,5 +187,11 @@ function handleModelSelect(model: string): void {
 
 .ranking-side {
   min-width: 0;
+}
+
+.detail-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 </style>

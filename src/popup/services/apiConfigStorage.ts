@@ -2,8 +2,8 @@ import type { ApiCheckResult, ApiCheckResultMap, ApiConfig, ApiConfigState } fro
 
 export const CONFIG_STORAGE_KEY = 'Translator.apiConfig';
 export const CONFIG_STATE_STORAGE_KEY = 'Translator.apiConfigState';
-const CHECK_RESULTS_STORAGE_KEY = 'Translator.apiCheckResults';
-const CHECK_RESULT_MAP_STORAGE_KEY = 'Translator.apiCheckResultMap';
+export const CHECK_RESULTS_STORAGE_KEY = 'Translator.apiCheckResults';
+export const CHECK_RESULT_MAP_STORAGE_KEY = 'Translator.apiCheckResultMap';
 
 const defaultConfig: ApiConfig = {
   id: 'default',
@@ -12,6 +12,9 @@ const defaultConfig: ApiConfig = {
   apiKey: '',
   model: '',
   maxConcurrency: 4,
+  inputTokenPrice: 0,
+  cachedInputTokenPrice: 0,
+  outputTokenPrice: 0,
 };
 
 /**
@@ -156,11 +159,18 @@ function normalizeConfig(config: Partial<ApiConfig>): ApiConfig {
     ...nextConfig,
     name: nextConfig.name || nextConfig.model || '',
     maxConcurrency: normalizeConcurrency(nextConfig.maxConcurrency),
+    inputTokenPrice: normalizePrice(nextConfig.inputTokenPrice),
+    cachedInputTokenPrice: normalizePrice(nextConfig.cachedInputTokenPrice),
+    outputTokenPrice: normalizePrice(nextConfig.outputTokenPrice),
   };
 }
 
 function normalizeConcurrency(value: number | undefined): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(65536, Math.max(1, Math.floor(value))) : 4;
+}
+
+function normalizePrice(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, value) : 0;
 }
 
 /**

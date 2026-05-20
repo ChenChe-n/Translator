@@ -8,6 +8,9 @@ export interface ApiConfig {
   apiKey: string;
   model: string;
   maxConcurrency: number;
+  inputTokenPrice: number;
+  cachedInputTokenPrice: number;
+  outputTokenPrice: number;
 }
 
 /**
@@ -43,6 +46,7 @@ export interface ModelDailyUsage {
   date: string;
   model: string;
   inputTokens: number;
+  cachedInputTokens: number;
   outputTokens: number;
 }
 
@@ -59,6 +63,7 @@ export interface UsageStatsSettings {
 export interface ModelUsageRecordInput {
   model: string;
   inputTokens: number;
+  cachedInputTokens?: number;
   outputTokens: number;
 }
 

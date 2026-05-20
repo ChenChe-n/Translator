@@ -26,6 +26,7 @@
       <ApiCheckResultList :results="checkResults" />
     </div>
     <ModelUsageStats
+      :active-config="config"
       :usage="modelUsage"
       :settings="usageSettings"
       @retention-change="handleRetentionChange"
@@ -130,6 +131,8 @@ async function handleImportApiConfig(state: ApiConfigState): Promise<void> {
   Object.assign(configState, state);
   configExpanded.value = false;
   await refreshCheckResults();
+  await refreshModelUsage();
+  usageSettings.value = await loadUsageStatsSettings();
 }
 
 async function handleRunChecks(): Promise<void> {

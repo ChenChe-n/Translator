@@ -1,8 +1,6 @@
 import type { ModelCallLog } from '../types/modelCall';
-import type { ModelDailyUsage, UsageStatsSettings } from '../types/api';
 import type { TextParseMetric } from '../types/textParseMetrics';
 import { loadModelCallLogs } from './modelCallLogStorage';
-import { loadModelDailyUsage, loadUsageStatsSettings } from './modelUsageStorage';
 import { loadTextParseMetrics } from './textParseMetricsStorage';
 import { loadTranslationCacheStats, type TranslationCacheStats } from './translationCacheStorage';
 
@@ -16,10 +14,8 @@ export interface ExportedMonitorDataPackage {
   };
   exportedAt: string;
   modelCallLogs: ModelCallLog[];
-  modelUsage: ModelDailyUsage[];
   schemaVersion: 1;
   textParseMetrics: TextParseMetric[];
-  usageSettings: UsageStatsSettings;
 }
 
 /**
@@ -28,11 +24,9 @@ export interface ExportedMonitorDataPackage {
  * @returns 监控数据 JSON 文本。
  */
 export async function exportMonitorDataJson(): Promise<string> {
-  const [textParseMetrics, modelCallLogs, modelUsage, usageSettings, normalStats, contextStats] = await Promise.all([
+  const [textParseMetrics, modelCallLogs, normalStats, contextStats] = await Promise.all([
     loadTextParseMetrics(),
     loadModelCallLogs(),
-    loadModelDailyUsage(),
-    loadUsageStatsSettings(),
     loadTranslationCacheStats('normal'),
     loadTranslationCacheStats('context'),
   ]);
@@ -42,8 +36,6 @@ export async function exportMonitorDataJson(): Promise<string> {
     exportedAt: new Date().toISOString(),
     textParseMetrics,
     modelCallLogs,
-    modelUsage,
-    usageSettings,
     cacheStats: {
       normal: normalStats,
       context: contextStats,

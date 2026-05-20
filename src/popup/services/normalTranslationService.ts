@@ -7,6 +7,7 @@ import type {
 import { allocateCachedNormalTranslationTid, readCachedNormalTranslation } from './normalTranslationCache';
 import { requestNormalTranslationBatch } from './normalTranslationBatchRequest';
 import { createNormalTranslationRequestKey } from './normalTranslationRequestKey';
+import { recordModelUsage } from './modelUsageStorage';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
@@ -46,6 +47,12 @@ export async function translateNormalMode(
   const cachedResult = await readCachedNormalTranslation(modeConfig, input, targetLanguage);
 
   if (cachedResult) {
+    await recordModelUsage({
+      model: apiConfig.model,
+      inputTokens: 0,
+      cachedInputTokens: estimateTextTokens(input.text),
+      outputTokens: 0,
+    });
     return cachedResult;
   }
 

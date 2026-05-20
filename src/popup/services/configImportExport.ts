@@ -1,6 +1,5 @@
 import { LOCALE_STORAGE_KEY, loadLocale, saveLocale } from '../../i18n/localeStorage';
 import type { LocaleCode } from '../../i18n';
-import { CONFIG_STATE_STORAGE_KEY, loadApiConfigState, saveApiConfigState } from './apiConfigStorage';
 import { RUNTIME_SETTINGS_KEY, loadRuntimeSettings, saveRuntimeSettings } from './runtimeSettingsStorage';
 import { ACTIVE_TEXT_PARSE_MODE_KEY, loadActiveTextParseMode, loadTextParseModeConfigMap, saveActiveTextParseMode, saveTextParseModeConfigMap, TEXT_PARSE_MODE_STORAGE_KEYS } from './textParseModeStorage';
 import { THEME_STORAGE_KEY, loadThemeSchemeState, saveThemeSchemeState } from './themeSchemeStorage';
@@ -12,14 +11,12 @@ import {
   saveActiveTranslationMode,
   saveTranslationModeConfigMap,
 } from './translationModeStorage';
-import type { ApiConfigState } from '../types/api';
 import type { RuntimeSettings } from '../types/runtimeSettings';
 import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textParseMode';
 import type { ThemeSchemeState } from '../types/theme';
 import type { TranslationModeConfigMap } from '../types/translationMode';
 
 export interface ExportedConfigPackage {
-  apiConfigState: ApiConfigState;
   exportedAt: string;
   locale: LocaleCode;
   runtimeSettings: RuntimeSettings;
@@ -49,7 +46,6 @@ export async function exportConfigJson(): Promise<string> {
     activeTranslationMode,
     textParseModeConfigMap,
     activeTextParseMode,
-    apiConfigState,
   ] = await Promise.all([
     loadLocale(),
     loadThemeSchemeState(),
@@ -58,7 +54,6 @@ export async function exportConfigJson(): Promise<string> {
     loadActiveTranslationMode(),
     loadTextParseModeConfigMap(),
     loadActiveTextParseMode(),
-    loadApiConfigState(),
   ]);
 
   return JSON.stringify({
@@ -75,7 +70,6 @@ export async function exportConfigJson(): Promise<string> {
       activeMode: activeTextParseMode,
       configMap: textParseModeConfigMap,
     },
-    apiConfigState,
   } satisfies ExportedConfigPackage, null, 2);
 }
 
@@ -96,7 +90,6 @@ export async function importConfigJson(json: string): Promise<ExportedConfigPack
     saveActiveTranslationMode(configPackage.translationMode.activeMode),
     saveTextParseModeConfigMap(configPackage.textParseMode.configMap),
     saveActiveTextParseMode(configPackage.textParseMode.activeMode),
-    saveApiConfigState(configPackage.apiConfigState),
   ]);
 
   return loadConfigPackage();
@@ -146,7 +139,6 @@ function normalizeConfigPackage(input: Partial<ExportedConfigPackage>): Exported
       activeMode,
       configMap: requireObject(input.textParseMode?.configMap, TEXT_PARSE_MODE_STORAGE_KEYS.visible),
     },
-    apiConfigState: requireObject(input.apiConfigState, CONFIG_STATE_STORAGE_KEY),
   };
 }
 
@@ -172,7 +164,6 @@ export function getConfigStorageKeys(): string[] {
     ...Object.values(TRANSLATION_MODE_STORAGE_KEYS),
     ACTIVE_TEXT_PARSE_MODE_KEY,
     ...Object.values(TEXT_PARSE_MODE_STORAGE_KEYS),
-    CONFIG_STATE_STORAGE_KEY,
   ];
 }
 

@@ -1,7 +1,7 @@
 import type { ModelDailyUsage, ModelUsageRecordInput, UsageStatsSettings } from '../types/api';
 
 export const USAGE_STORAGE_KEY = 'Translator.modelDailyUsage';
-const SETTINGS_STORAGE_KEY = 'Translator.usageStatsSettings';
+export const USAGE_SETTINGS_STORAGE_KEY = 'Translator.usageStatsSettings';
 const DEFAULT_RETENTION_DAYS = 30;
 
 /**
@@ -14,10 +14,10 @@ export async function loadUsageStatsSettings(): Promise<UsageStatsSettings> {
     return loadPreviewSettings();
   }
 
-  const stored = await chrome.storage.local.get(SETTINGS_STORAGE_KEY);
+  const stored = await chrome.storage.local.get(USAGE_SETTINGS_STORAGE_KEY);
   return {
     ...createDefaultSettings(),
-    ...(stored[SETTINGS_STORAGE_KEY] as Partial<UsageStatsSettings> | undefined),
+    ...(stored[USAGE_SETTINGS_STORAGE_KEY] as Partial<UsageStatsSettings> | undefined),
   };
 }
 
@@ -36,7 +36,7 @@ export async function saveUsageStatsSettings(settings: UsageStatsSettings): Prom
 
   const usage = await loadModelDailyUsage();
   await chrome.storage.local.set({
-    [SETTINGS_STORAGE_KEY]: settings,
+    [USAGE_SETTINGS_STORAGE_KEY]: settings,
     [USAGE_STORAGE_KEY]: pruneUsage(usage, settings.retentionDays),
   });
 }
@@ -93,11 +93,11 @@ export async function clearModelDailyUsage(): Promise<void> {
  */
 export async function clearUsageStatsSettings(): Promise<UsageStatsSettings> {
   if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    localStorage.removeItem(SETTINGS_STORAGE_KEY);
+    localStorage.removeItem(USAGE_SETTINGS_STORAGE_KEY);
     return createDefaultSettings();
   }
 
-  await chrome.storage.local.remove(SETTINGS_STORAGE_KEY);
+  await chrome.storage.local.remove(USAGE_SETTINGS_STORAGE_KEY);
   return createDefaultSettings();
 }
 
@@ -129,6 +129,7 @@ function upsertTodayUsage(usage: ModelDailyUsage[], input: ModelUsageRecordInput
         ? {
             ...item,
             inputTokens: item.inputTokens + input.inputTokens,
+            cachedInputTokens: (item.cachedInputTokens ?? 0) + (input.cachedInputTokens ?? 0),
             outputTokens: item.outputTokens + input.outputTokens,
           }
         : item,
@@ -141,6 +142,7 @@ function upsertTodayUsage(usage: ModelDailyUsage[], input: ModelUsageRecordInput
       date: today,
       model: input.model,
       inputTokens: input.inputTokens,
+      cachedInputTokens: input.cachedInputTokens ?? 0,
       outputTokens: input.outputTokens,
     },
   ];
@@ -153,12 +155,12 @@ function createDefaultSettings(): UsageStatsSettings {
 }
 
 function loadPreviewSettings(): UsageStatsSettings {
-  const value = localStorage.getItem(SETTINGS_STORAGE_KEY);
+  const value = localStorage.getItem(USAGE_SETTINGS_STORAGE_KEY);
   return value ? { ...createDefaultSettings(), ...JSON.parse(value) } : createDefaultSettings();
 }
 
 function savePreviewSettings(settings: UsageStatsSettings): void {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  localStorage.setItem(USAGE_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
 }
 
 function loadPreviewUsage(): ModelDailyUsage[] {

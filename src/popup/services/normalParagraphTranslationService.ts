@@ -3,6 +3,7 @@ import type { NormalTranslationPendingItem, NormalTranslationResult } from '../t
 import { allocateCachedNormalTranslationTid, readCachedNormalTranslation } from './normalTranslationCache';
 import { requestNormalTranslationBatch } from './normalTranslationBatchRequest';
 import { createNormalTranslationRequestKey } from './normalTranslationRequestKey';
+import { recordModelUsage } from './modelUsageStorage';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
@@ -152,6 +153,12 @@ async function createParagraphContextItem(
   result: NormalTranslationResult | Promise<NormalTranslationResult>,
 ): Promise<NormalTranslationPendingItem> {
   const resolvedResult = await result;
+  await recordModelUsage({
+    model: apiConfig.model,
+    inputTokens: 0,
+    cachedInputTokens: estimateTextTokens(input.text),
+    outputTokens: 0,
+  });
 
   return {
     apiConfig,
@@ -164,6 +171,10 @@ async function createParagraphContextItem(
     resolve: () => undefined,
     reject: () => undefined,
   };
+}
+
+function estimateTextTokens(text: string): number {
+  return Math.max(1, Math.round(text.length / 4));
 }
 
 async function assignParagraphItemIds(items: ParagraphRequestItem[]): Promise<void> {
