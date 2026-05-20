@@ -2,6 +2,7 @@ import type { ApiConfig } from '../types/api';
 import type { ModelCallLog } from '../types/modelCall';
 import { createRequestLog, failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
+import { readChatStreamContent } from './openAiCompatibleStream';
 import { requestChat } from './openAiCompatibleTransport';
 
 interface ChatResponse {
@@ -18,6 +19,11 @@ interface ChatResponse {
 
 export interface StreamTextOptions {
   onContent?: (content: string) => void | Promise<void>;
+  shouldRecordUsage?: () => boolean;
+}
+
+export interface RequestUsageOptions {
+  shouldRecordUsage?: () => boolean;
 }
 
 export interface LoggedChatResponse {
@@ -33,14 +39,21 @@ export interface LoggedChatResponse {
  * @param prompt 提示词。
  * @returns 模型输出文本。
  */
-export async function requestText(config: ApiConfig, prompt: string): Promise<string> {
+export async function requestText(config: ApiConfig, prompt: string, options: RequestUsageOptions = {}): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
   const body = createTextBody(prompt);
   const callLog = await createRequestLog(config, body);
 
   try {
     const chatResponse = await requestChat(config, body);
-    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
+    return await readAndRecordChatContent(
+      config,
+      chatResponse.response,
+      inputTokens,
+      callLog,
+      chatResponse.release,
+      options.shouldRecordUsage,
+    );
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -54,7 +67,7 @@ export async function requestText(config: ApiConfig, prompt: string): Promise<st
  * @param prompt 提示词。
  * @returns 模型输出文本。
  */
-export async function requestJson(config: ApiConfig, prompt: string): Promise<string> {
+export async function requestJson(config: ApiConfig, prompt: string, options: RequestUsageOptions = {}): Promise<string> {
   const inputTokens = estimateTokenCount(prompt);
   const body = {
     response_format: {
@@ -66,7 +79,14 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
 
   try {
     const chatResponse = await requestChat(config, body);
-    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
+    return await readAndRecordChatContent(
+      config,
+      chatResponse.response,
+      inputTokens,
+      callLog,
+      chatResponse.release,
+      options.shouldRecordUsage,
+    );
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -81,7 +101,12 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
  * @param imageUrl 图片地址。
  * @returns 模型输出文本。
  */
-export async function requestImage(config: ApiConfig, prompt: string, imageUrl: string): Promise<string> {
+export async function requestImage(
+  config: ApiConfig,
+  prompt: string,
+  imageUrl: string,
+  options: RequestUsageOptions = {},
+): Promise<string> {
   const inputTokens = estimateTokenCount(prompt) + estimateImageInputTokens(imageUrl);
   const body = {
     messages: [
@@ -106,7 +131,14 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
 
   try {
     const chatResponse = await requestChat(config, body);
-    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
+    return await readAndRecordChatContent(
+      config,
+      chatResponse.response,
+      inputTokens,
+      callLog,
+      chatResponse.release,
+      options.shouldRecordUsage,
+    );
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -130,12 +162,14 @@ export async function requestStream(config: ApiConfig, prompt: string, options: 
 
   try {
     const chatResponse = await requestChat(config, body);
-    const content = await readStreamContent(chatResponse.response, async (nextContent) => {
+    const content = await readChatStreamContent(chatResponse.response, async (nextContent) => {
       options.onContent?.(nextContent);
       await updateRequestOutput(callLog, nextContent);
     }, chatResponse.release);
     await updateRequestOutput(callLog, content, true);
-    await recordUsage(config, inputTokens, content);
+    if (shouldRecordUsage(options.shouldRecordUsage)) {
+      await recordUsage(config, inputTokens, content);
+    }
     return content;
   } catch (error) {
     await failRequestLog(callLog, error);
@@ -172,102 +206,18 @@ async function readAndRecordChatContent(
   inputTokens: number,
   callLog: ModelCallLog,
   release: () => void,
+  shouldRecordUsageCallback?: () => boolean,
 ): Promise<string> {
   try {
     const data = (await response.json()) as ChatResponse;
     const content = data.choices?.[0]?.message?.content ?? '';
     await updateRequestOutput(callLog, content, true);
-    await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
-    return content;
-  } finally {
-    release();
-  }
-}
-
-async function readStreamContent(
-  response: Response,
-  onContent?: (content: string) => void | Promise<void>,
-  release: () => void = () => undefined,
-): Promise<string> {
-  try {
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let content = '';
-    let buffer = '';
-
-    if (!reader) {
-      throw new Error('api.errors.streamUnsupported');
-    }
-
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) {
-        break;
-      }
-
-      buffer += decoder.decode(value, { stream: true });
-      const parsed = parseStreamBuffer(buffer);
-      buffer = parsed.rest;
-      content += parsed.content;
-      if (parsed.content) {
-        await onContent?.(content);
-      }
-    }
-
-    buffer += decoder.decode();
-    const parsed = parseStreamBuffer(`${buffer}\n`);
-    content += parsed.content;
-    if (parsed.content) {
-      await onContent?.(content);
+    if (shouldRecordUsage(shouldRecordUsageCallback)) {
+      await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
     }
     return content;
   } finally {
     release();
-  }
-}
-
-function parseStreamBuffer(buffer: string): {
-  content: string;
-  rest: string;
-} {
-  let content = '';
-  const lines = buffer.split('\n');
-  const rest = lines.pop() ?? '';
-
-  for (const line of lines) {
-    if (!line.startsWith('data: ')) {
-      continue;
-    }
-
-    const payload = line.slice(6).trim();
-
-    if (payload === '[DONE]') {
-      continue;
-    }
-
-    content += readStreamDelta(payload);
-  }
-
-  return {
-    content,
-    rest,
-  };
-}
-
-function readStreamDelta(payload: string): string {
-  try {
-    const data = JSON.parse(payload) as {
-      choices?: Array<{
-        delta?: {
-          content?: string;
-        };
-      }>;
-    };
-
-    return data.choices?.[0]?.delta?.content ?? '';
-  } catch {
-    return '';
   }
 }
 
@@ -297,6 +247,10 @@ async function recordUsage(
 
 function estimateImageInputTokens(imageUrl: string): number {
   return imageUrl.startsWith('data:') ? Math.max(85, Math.round(imageUrl.length / 600)) : 85;
+}
+
+function shouldRecordUsage(callback: (() => boolean) | undefined): boolean {
+  return callback?.() !== false;
 }
 
 function estimateTokenCount(content: string): number {

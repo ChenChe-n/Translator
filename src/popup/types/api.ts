@@ -14,6 +14,11 @@ export interface ApiConfig {
 }
 
 /**
+ * 模型 token 价格配置。
+ */
+export type ApiPriceConfig = Pick<ApiConfig, 'inputTokenPrice' | 'cachedInputTokenPrice' | 'outputTokenPrice'>;
+
+/**
  * OpenAI 兼容接口配置集合。
  */
 export interface ApiConfigState {

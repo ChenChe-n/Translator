@@ -7,6 +7,8 @@
         class="config-tab"
         :class="{ active: item.id === activeConfigId }"
         type="button"
+        @mouseenter="$emit('configHover', item.id)"
+        @mouseleave="$emit('configHover', undefined)"
         @click="handleSelect(item.id)"
       >
         <span class="tab-name">{{ getConfigName(item, index) }}</span>
@@ -36,6 +38,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
+  configHover: [id: string | undefined];
   create: [];
   remove: [id: string];
   select: [id: string];

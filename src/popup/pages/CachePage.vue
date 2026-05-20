@@ -66,8 +66,7 @@ import { useI18n } from '../composables/useI18n';
 import { downloadJsonFile } from '../services/jsonFileTransfer';
 import { TRANSLATION_CACHE_STORAGE_KEYS } from '../services/translationCacheKeys';
 import {
-  clearContextTranslationCache,
-  clearNormalTranslationCache,
+  clearTranslationCaches,
   loadTranslationCacheLanguages,
 } from '../services/translationCacheStorage';
 import { exportTranslationCacheJson, importTranslationCacheJson } from '../services/translationCacheTransfer';
@@ -135,12 +134,7 @@ async function handleImportCache(json: string): Promise<void> {
 }
 
 async function handleClearCache(): Promise<void> {
-  if (activeMode.value === 'normal') {
-    await clearNormalTranslationCache();
-  } else {
-    await clearContextTranslationCache();
-  }
-
+  await clearTranslationCaches();
   activeLanguage.value = '';
   await refreshCacheView();
   ElMessage.success(t('common.cleared'));

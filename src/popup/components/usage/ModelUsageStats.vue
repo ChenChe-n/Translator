@@ -19,7 +19,7 @@
       <UsageBarChart
         class="chart-main"
         :items="dailyUsage"
-        :active-model="activeModel"
+        :active-model="focusedModel"
         :selected-model="selectedModel"
         @model-hover="handleModelHover"
         @model-select="handleModelSelect"
@@ -27,7 +27,7 @@
       <UsageRanking
         class="ranking-side"
         :items="todayRanking"
-        :active-model="activeModel"
+        :active-model="focusedModel"
         :selected-model="selectedModel"
         @model-hover="handleModelHover"
         @model-select="handleModelSelect"
@@ -36,7 +36,7 @@
     <section class="detail-row">
       <TokenDistributionPanel :items="distributionItems" />
       <UsagePricePanel
-        :config="activeConfig"
+        :prices="currentPrices"
         :input-tokens="currentModelUsage.inputTokens"
         :cached-input-tokens="currentModelUsage.cachedInputTokens"
         :output-tokens="currentModelUsage.outputTokens"
@@ -55,7 +55,7 @@ import {
   createModelColorMap,
 } from '../../services/modelUsageAggregator';
 import { pruneUsage } from '../../services/modelUsageStorage';
-import type { ApiConfig, ModelDailyUsage, UsageStatsSettings } from '../../types/api';
+import type { ApiConfig, ApiPriceConfig, ModelDailyUsage, UsageStatsSettings } from '../../types/api';
 import UsageBarChart from './UsageBarChart.vue';
 import TokenDistributionPanel from './TokenDistributionPanel.vue';
 import UsageRanking from './UsageRanking.vue';
@@ -63,6 +63,8 @@ import UsagePricePanel from './UsagePricePanel.vue';
 
 const props = defineProps<{
   activeConfig: ApiConfig;
+  configs: ApiConfig[];
+  previewConfig?: ApiConfig;
   usage: ModelDailyUsage[];
   settings: UsageStatsSettings;
 }>();
@@ -76,8 +78,10 @@ const scopedUsage = computed(() => pruneUsage(props.usage, props.settings.retent
 const colorMap = computed(() => createModelColorMap(scopedUsage.value));
 const dailyUsage = computed(() => aggregateDailyUsage(scopedUsage.value, colorMap.value));
 const todayRanking = computed(() => aggregateTodayRanking(scopedUsage.value, colorMap.value));
-const currentModel = computed(() => selectedModel.value ?? props.activeConfig.model);
+const focusedModel = computed(() => activeModel.value ?? props.previewConfig?.model);
+const currentModel = computed(() => focusedModel.value ?? selectedModel.value ?? props.activeConfig.model);
 const currentModelUsage = computed(() => summarizeModelUsage(scopedUsage.value, currentModel.value));
+const currentPrices = computed(() => resolveModelPrices());
 const distributionItems = computed(() => {
   const usage = currentModelUsage.value;
   const totalTokens = usage.inputTokens + usage.cachedInputTokens + usage.outputTokens;
@@ -119,6 +123,23 @@ function summarizeModelUsage(usage: ModelDailyUsage[], model: string): {
       inputTokens: 0,
       outputTokens: 0,
     });
+}
+
+function resolveModelPrices(): ApiPriceConfig {
+  const config = activeModel.value
+    ? findConfigByModel(activeModel.value)
+    : props.previewConfig ?? findConfigByModel(currentModel.value) ?? props.activeConfig;
+
+  return config ?? {
+    cachedInputTokenPrice: 0,
+    inputTokenPrice: 0,
+    outputTokenPrice: 0,
+  };
+}
+
+function findConfigByModel(model: string): ApiConfig | undefined {
+  const normalizedModel = model.trim();
+  return props.configs.find((item) => item.model.trim() === normalizedModel);
 }
 
 function createDistributionItem(

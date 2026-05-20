@@ -1,13 +1,17 @@
 import type { ApiCheckKey, ApiCheckResult, ApiConfig } from '../types/api';
 import type { I18nKey } from '../../i18n';
-import { requestImage, requestJson, requestStream, requestText } from './openAiCompatibleClient';
+import { requestImage, requestJson, requestStream, requestText, type RequestUsageOptions } from './openAiCompatibleClient';
 
 interface ApiCheckTaskResult {
   passed: boolean;
   outputTokens?: number;
 }
 
-type ApiCheckTask = (config: ApiConfig) => Promise<ApiCheckTaskResult>;
+export interface ApiHealthCheckOptions {
+  isActive?: () => boolean;
+}
+
+type ApiCheckTask = (config: ApiConfig, options: RequestUsageOptions) => Promise<ApiCheckTaskResult>;
 
 interface ApiCheckDefinition {
   key: ApiCheckKey;
@@ -68,34 +72,42 @@ export function createDefaultApiCheckResults(): ApiCheckResult[] {
  * @param config API 配置。
  * @returns 单项测试结果迭代器。
  */
-export async function* runApiHealthChecks(config: ApiConfig): AsyncGenerator<ApiCheckResult> {
+export async function* runApiHealthChecks(
+  config: ApiConfig,
+  options: ApiHealthCheckOptions = {},
+): AsyncGenerator<ApiCheckResult> {
   for (const definition of checkDefinitions) {
+    if (options.isActive?.() === false) {
+      return;
+    }
+
     yield buildRunningResult(definition);
-    yield await runCheck(config, definition);
+    yield await runCheck(config, definition, options);
   }
 }
 
-async function testBasicText(config: ApiConfig): Promise<ApiCheckTaskResult> {
-  const content = await requestText(config, `只输出 ${BASIC_TEXT_TOKEN}`);
+async function testBasicText(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
+  const content = await requestText(config, `只输出 ${BASIC_TEXT_TOKEN}`, options);
   return {
     passed: content.includes(BASIC_TEXT_TOKEN),
   };
 }
 
-async function testJsonOutput(config: ApiConfig): Promise<ApiCheckTaskResult> {
-  const content = await requestJson(config, '只输出 JSON：{"ok":true,"name":"Translator"}');
+async function testJsonOutput(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
+  const content = await requestJson(config, '只输出 JSON：{"ok":true,"name":"Translator"}', options);
   const parsed = JSON.parse(extractJson(content)) as { ok?: boolean; name?: string };
   return {
     passed: parsed.ok === true && parsed.name === 'Translator',
   };
 }
 
-async function testImageUnderstanding(config: ApiConfig): Promise<ApiCheckTaskResult> {
+async function testImageUnderstanding(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
   const imageDataUrl = await loadTestImageDataUrl();
   const content = await requestImage(
     config,
     '识别图片文字。只输出你看到的文字，按行输出。',
     imageDataUrl,
+    options,
   );
 
   return {
@@ -103,17 +115,18 @@ async function testImageUnderstanding(config: ApiConfig): Promise<ApiCheckTaskRe
   };
 }
 
-async function testStreamOutput(config: ApiConfig): Promise<ApiCheckTaskResult> {
-  const content = await requestStream(config, `使用流式响应，只输出 ${STREAM_TOKEN}`);
+async function testStreamOutput(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
+  const content = await requestStream(config, `使用流式响应，只输出 ${STREAM_TOKEN}`, options);
   return {
     passed: content.includes(STREAM_TOKEN),
   };
 }
 
-async function testTokenThroughput(config: ApiConfig): Promise<ApiCheckTaskResult> {
+async function testTokenThroughput(config: ApiConfig, options: RequestUsageOptions): Promise<ApiCheckTaskResult> {
   const content = await requestStream(
     config,
     `连续输出约 ${TOKEN_TARGET} 个英文 token。不要解释，不要编号，只输出正文。`,
+    options,
   );
   const outputTokens = estimateTokenCount(content);
 
@@ -123,11 +136,17 @@ async function testTokenThroughput(config: ApiConfig): Promise<ApiCheckTaskResul
   };
 }
 
-async function runCheck(config: ApiConfig, definition: ApiCheckDefinition): Promise<ApiCheckResult> {
+async function runCheck(
+  config: ApiConfig,
+  definition: ApiCheckDefinition,
+  options: ApiHealthCheckOptions,
+): Promise<ApiCheckResult> {
   const startedAt = performance.now();
 
   try {
-    const result = await definition.task(config);
+    const result = await definition.task(config, {
+      shouldRecordUsage: options.isActive,
+    });
     const durationMs = Math.round(performance.now() - startedAt);
 
     return buildFinishedResult(definition, result, durationMs);

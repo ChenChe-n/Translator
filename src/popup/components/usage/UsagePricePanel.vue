@@ -25,20 +25,20 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import { useI18n } from '../../composables/useI18n';
-import type { ApiConfig } from '../../types/api';
+import type { ApiPriceConfig } from '../../types/api';
 
 const props = defineProps<{
   cachedInputTokens: number;
-  config: ApiConfig;
   inputTokens: number;
   outputTokens: number;
+  prices: ApiPriceConfig;
 }>();
 
 const { t } = useI18n();
 const priceUnit = 1_000_000;
-const inputCost = computed(() => calculateCost(props.inputTokens, props.config.inputTokenPrice));
-const cachedInputCost = computed(() => calculateCost(props.cachedInputTokens, props.config.cachedInputTokenPrice));
-const outputCost = computed(() => calculateCost(props.outputTokens, props.config.outputTokenPrice));
+const inputCost = computed(() => calculateCost(props.inputTokens, props.prices.inputTokenPrice));
+const cachedInputCost = computed(() => calculateCost(props.cachedInputTokens, props.prices.cachedInputTokenPrice));
+const outputCost = computed(() => calculateCost(props.outputTokens, props.prices.outputTokenPrice));
 const totalCost = computed(() => inputCost.value + cachedInputCost.value + outputCost.value);
 
 function calculateCost(tokens: number, price: number): number {
