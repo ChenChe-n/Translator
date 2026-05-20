@@ -9,7 +9,7 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   '你是翻译引擎。\n' +
   '目标语言：{TARGET_LOCALE}。格式要求：{FORMAT_MODE}。\n' +
   '输入是 JSONL，每行一个对象，每个对象只有一个 TID 键。\n' +
-  '输入行前的空格表示局部上下文层级。\n' +
+  '输入顺序就是局部上下文顺序，按页面从左到右、从上到下排列。\n' +
   '输出也必须是 JSONL，每个输入行对应一个输出行，TID 必须完全不变。\n' +
   '除非整句已经是目标语言，或整句是领域关键词、专有名词、代码、数字、符号，否则都应该翻译。\n' +
   '整句无需翻译时输出 JSON null；不要输出“不翻译”等说明文字。\n' +
@@ -22,6 +22,9 @@ export const TRANSLATION_MODE_STORAGE_KEYS: Record<TranslationModeKey, string> =
   normal: 'Translator.translationMode.normal',
   context: 'Translator.translationMode.context',
 };
+const legacyNormalPromptSnippets = [
+  '输入行前的空格表示局部上下文层级。',
+];
 const storageOptions = {
   modes: TRANSLATION_MODE_KEYS,
   storageKeys: TRANSLATION_MODE_STORAGE_KEYS,
@@ -142,7 +145,7 @@ function normalizeModeConfig(
     ...defaultConfig,
     ...config,
     mode,
-    prompt: config?.prompt || defaultConfig.prompt,
+    prompt: normalizePrompt(mode, config?.prompt, defaultConfig.prompt),
     parameters: {
       ...defaultConfig.parameters,
       ...config?.parameters,
@@ -162,6 +165,16 @@ function normalizeModeConfig(
         : false,
     },
   };
+}
+
+function normalizePrompt(mode: TranslationModeKey, prompt: string | undefined, fallback: string): string {
+  if (!prompt) {
+    return fallback;
+  }
+
+  return mode === 'normal' && legacyNormalPromptSnippets.some((snippet) => prompt.includes(snippet))
+    ? fallback
+    : prompt;
 }
 
 function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {

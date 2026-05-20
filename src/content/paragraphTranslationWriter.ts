@@ -39,7 +39,6 @@ export async function translateParagraphGroupAndWrite(
       runtimeConfig.apiConfig,
       runtimeConfig.translationConfig,
       group.references.map((item) => ({
-        depth: item.depth,
         text: item.reference.text,
       })),
       runtimeConfig.targetLanguage,

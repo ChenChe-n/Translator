@@ -6,6 +6,7 @@ import type {
 } from '../types/normalTranslation';
 import { allocateCachedNormalTranslationTid, readCachedNormalTranslation } from './normalTranslationCache';
 import { requestNormalTranslationBatch } from './normalTranslationBatchRequest';
+import { createNormalTranslationRequestKey } from './normalTranslationRequestKey';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
@@ -48,7 +49,7 @@ export async function translateNormalMode(
     return cachedResult;
   }
 
-  const inFlightKey = createInFlightKey(apiConfig, modeConfig, input.text, targetLanguage, tid);
+  const inFlightKey = createNormalTranslationRequestKey(apiConfig, modeConfig, input.text, targetLanguage, tid);
   const inFlightResult = inFlightTranslations.get(inFlightKey);
 
   if (inFlightResult) {
@@ -90,35 +91,6 @@ function enqueueTranslation(
   queue.push(item);
   scheduleBatchDispatch(modeConfig);
   return result;
-}
-
-function createInFlightKey(
-  apiConfig: NormalTranslationPendingItem['apiConfig'],
-  modeConfig: TranslationModeConfig,
-  text: string,
-  targetLanguage: string,
-  tid: string,
-): string {
-  return JSON.stringify([
-    normalizeEndpoint(apiConfig.baseUrl),
-    apiConfig.model.trim(),
-    normalizeTargetLanguage(targetLanguage),
-    modeConfig.mode,
-    modeConfig.prompt,
-    modeConfig.parameters.temperature,
-    modeConfig.parameters.maxTokens,
-    modeConfig.options.preserveFormatting,
-    tid,
-    text,
-  ]);
-}
-
-function normalizeEndpoint(url: string): string {
-  return url.trim().replace(/\/+$/, '');
-}
-
-function normalizeTargetLanguage(targetLanguage: string): string {
-  return targetLanguage.trim().toLowerCase() || 'default';
 }
 
 function releaseBatchInFlightEntries(batch: NormalTranslationPendingItem[]): void {

@@ -9,6 +9,7 @@ import type {
 import { scanTextReferences } from './textNodeScanner';
 
 const estimatedJsonlOverhead = 24;
+const rectEqualThreshold = 1;
 
 interface ParagraphScanIndex {
   elementRefs: WeakMap<Element, ParsedTextReference[]>;
@@ -33,7 +34,7 @@ export function scanParagraphGroups(config: TextParseRuntimeConfig): ParsedParag
   const groups: ParsedParagraphGroup[] = [];
   let groupIndex = 0;
 
-  index.references.forEach((reference) => {
+  sortReferencesByVisualOrder(index.references).forEach((reference) => {
     if (isGrouped(reference, index.grouped)) {
       return;
     }
@@ -89,14 +90,11 @@ function selectParagraphReferences(
 ): ParsedParagraphReference[] {
   const element = findHighestFittingElement(reference.owner, index, maxTokens);
   const references = element ? index.elementRefs.get(element) ?? [reference] : [reference];
-  return normalizeDepth(
-    references
-      .filter((item) => !isGrouped(item, index.grouped))
-      .map((item) => ({
-        depth: element ? readReferenceDepth(item, element) : 0,
-        reference: item,
-      })),
-  );
+  return sortReferencesByVisualOrder(
+    references.filter((item) => !isGrouped(item, index.grouped)),
+  ).map((item) => ({
+    reference: item,
+  }));
 }
 
 function findHighestFittingElement(
@@ -119,28 +117,44 @@ function findHighestFittingElement(
   return highest;
 }
 
-function readReferenceDepth(reference: ParsedTextReference, root: Element): number {
-  let depth = 0;
-  let element: Element | null = reference.owner;
-
-  while (element && element !== root) {
-    depth += 1;
-    element = element.parentElement;
-  }
-
-  return depth;
-}
-
-function normalizeDepth(items: ParsedParagraphReference[]): ParsedParagraphReference[] {
-  const minDepth = Math.min(...items.map((item) => item.depth));
-  return items.map((item) => ({
-    ...item,
-    depth: item.depth - minDepth,
-  }));
-}
-
 function estimateTextTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
+}
+
+function sortReferencesByVisualOrder(references: ParsedTextReference[]): ParsedTextReference[] {
+  return [...references].sort((left, right) => compareReferencePosition(left, right));
+}
+
+function compareReferencePosition(left: ParsedTextReference, right: ParsedTextReference): number {
+  const leftRect = readReferenceRect(left);
+  const rightRect = readReferenceRect(right);
+
+  if (!leftRect || !rightRect) {
+    return 0;
+  }
+
+  const topDiff = leftRect.top - rightRect.top;
+
+  if (Math.abs(topDiff) > rectEqualThreshold) {
+    return topDiff;
+  }
+
+  return leftRect.left - rightRect.left;
+}
+
+function readReferenceRect(reference: ParsedTextReference): DOMRect | undefined {
+  if (reference.kind === 'attribute') {
+    return reference.owner.getClientRects()[0];
+  }
+
+  const range = document.createRange();
+
+  try {
+    range.selectNodeContents(reference.node);
+    return Array.from(range.getClientRects())[0] ?? reference.owner.getClientRects()[0];
+  } finally {
+    range.detach();
+  }
 }
 
 function isGrouped(reference: ParsedTextReference, grouped: GroupedReferenceSet): boolean {

@@ -17,7 +17,6 @@ export type ParsedTextReference = ParsedTextNodeReference | ParsedTextAttributeR
  * 段落上下文文本引用。
  */
 export interface ParsedParagraphReference {
-  depth: number;
   reference: ParsedTextReference;
 }
 

@@ -21,10 +21,11 @@ export interface NormalTranslationResult {
  */
 export interface NormalTranslationPendingItem {
   apiConfig: ApiConfig;
+  cacheWrite?: boolean;
   config: TranslationModeConfig;
-  depth?: number;
   id: string;
   promise?: Promise<NormalTranslationResult>;
+  required?: boolean;
   targetLanguage: string;
   text: string;
   resolve: (result: NormalTranslationResult) => void;

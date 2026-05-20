@@ -20,7 +20,7 @@ const outputExamples: Record<string, string[]> = {
   'en-us': [
     '输入：',
     '{"tid-a":"标题"}',
-    '  {"tid-b":"你好，世界"}',
+    '{"tid-b":"你好，世界"}',
     '{"tid-c":"OpenAI"}',
     '输出：',
     '{"tid-a":"Title"}',
@@ -30,7 +30,7 @@ const outputExamples: Record<string, string[]> = {
   'zh-hans': [
     '输入：',
     '{"tid-a":"Title"}',
-    '  {"tid-b":"Hello world"}',
+    '{"tid-b":"Hello world"}',
     '{"tid-c":"OpenAI"}',
     '输出：',
     '{"tid-a":"标题"}',
@@ -49,7 +49,7 @@ export async function requestNormalTranslationBatch(batch: NormalTranslationPend
   const config = batch[0].config;
   const apiConfig = batch[0].apiConfig;
   const body = buildRequestBody(config, batch, batch[0].targetLanguage);
-  const idSet = new Set(batch.map((item) => item.id));
+  const idSet = new Set(readRequiredItems(batch).map((item) => item.id));
   const results = new Map<string, string | null>();
   let callLog: Awaited<ReturnType<typeof requestChatResponse>>['callLog'] | undefined;
 
@@ -181,7 +181,7 @@ async function readJsonResponse(response: Response, release: () => void): Promis
 }
 
 function resolveBatchResults(batch: NormalTranslationPendingItem[], results: Map<string, string | null>): void {
-  batch.forEach((item) => {
+  readRequiredItems(batch).forEach((item) => {
     if (results.has(item.id)) {
       item.resolve({ tid: item.id, text: results.get(item.id) ?? null });
       return;
@@ -213,11 +213,14 @@ function resolveMatched(
   tid: string,
   text: string | null,
 ): void {
-  const matchedItems = batch.filter((pendingItem) => pendingItem.id === tid);
+  const matchedItems = readRequiredItems(batch).filter((pendingItem) => pendingItem.id === tid);
 
   matchedItems.forEach((item) => {
-    void writeCachedNormalTranslation(config, item.text, text, item.targetLanguage)
-      .catch(() => undefined);
+    if (item.cacheWrite !== false) {
+      void writeCachedNormalTranslation(config, item.text, text, item.targetLanguage)
+        .catch(() => undefined);
+    }
+
     item.resolve({ tid, text });
   });
 }
@@ -234,7 +237,7 @@ async function writeBatchCache(
   await writeCachedNormalTranslationBatch(
     config,
     batch
-      .filter((item) => results.has(item.id))
+      .filter((item) => item.cacheWrite !== false && results.has(item.id))
       .map((item) => ({
         sourceText: item.text,
         targetLanguage: item.targetLanguage,
@@ -260,8 +263,12 @@ function createUniqueBatchItems(batch: NormalTranslationPendingItem[]): NormalTr
   return [...itemMap.values()];
 }
 
+function readRequiredItems(batch: NormalTranslationPendingItem[]): NormalTranslationPendingItem[] {
+  return batch.filter((item) => item.required !== false);
+}
+
 function formatBatchItem(item: NormalTranslationPendingItem): string {
-  return `${'  '.repeat(Math.max(0, item.depth ?? 0))}${JSON.stringify({ [item.id]: item.text })}`;
+  return JSON.stringify({ [item.id]: item.text });
 }
 
 async function recordTranslationUsage(
