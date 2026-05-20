@@ -53,7 +53,7 @@ export async function translateNormalMode(
     };
   }
 
-  const cachedResult = await readCachedNormalTranslation(modeConfig, input);
+  const cachedResult = await readCachedNormalTranslation(modeConfig, input, targetLanguage);
 
   if (cachedResult) {
     return cachedResult;
@@ -249,7 +249,7 @@ function resolveMatched(
     return;
   }
 
-  void writeCacheIfEnabled(config, item.text, text);
+  void writeCacheIfEnabled(config, item.text, text, item.targetLanguage);
   item.resolve({ tid, text });
 }
 
@@ -279,7 +279,7 @@ async function writeBatchCache(
   await Promise.all(
     batch.map(async (item) => {
       if (results.has(item.id)) {
-        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null);
+        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null, item.targetLanguage);
       }
     }),
   );
@@ -289,8 +289,9 @@ async function writeCacheIfEnabled(
   config: TranslationModeConfig,
   sourceText: string,
   text: string | null,
+  targetLanguage: string,
 ): Promise<void> {
-  await writeCachedNormalTranslation(config, sourceText, text);
+  await writeCachedNormalTranslation(config, sourceText, text, targetLanguage);
 }
 
 function readChatContent(data: unknown): string {

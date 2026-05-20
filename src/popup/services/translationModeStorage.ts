@@ -10,7 +10,8 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
   'Input is JSONL: one object per line, one Tid key per object.\n' +
   'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
-  'Keep each Tid exactly as given. Translate values; copy unchanged text when no translation is needed. Use null only for empty or non-text noise.';
+  'Keep each Tid exactly as given. Translate values only when the source text is not already in the target locale.\n' +
+  'Use null when the value is already in the target locale, empty, non-text noise, or should not be translated.';
 
 export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
 export const TRANSLATION_MODE_STORAGE_KEYS: Record<TranslationModeKey, string> = {

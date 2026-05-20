@@ -2,12 +2,14 @@ import type { TranslationModeKey } from '../types/translationMode';
 
 export interface NormalTranslationCacheInput {
   sourceText: string;
+  targetLanguage: string;
   tid: string;
 }
 
 interface TranslationCacheEntry {
   key: string;
   sourceText: string;
+  targetLanguage: string;
   text: string | null;
   updatedAt: number;
 }
@@ -96,7 +98,7 @@ async function readTranslationCache(
   input: NormalTranslationCacheInput,
 ): Promise<{ text: string | null } | undefined> {
   const cache = await loadTranslationCache(mode);
-  const entry = cache[input.tid];
+  const entry = cache[createScopedCacheKey(input)];
 
   return isEntryMatched(entry, input) ? { text: entry.text } : undefined;
 }
@@ -107,7 +109,7 @@ async function writeTranslationCache(
   text: string | null,
 ): Promise<void> {
   const cache = await loadTranslationCache(mode);
-  cache[input.tid] = createCacheEntry(input, text);
+  cache[createScopedCacheKey(input)] = createCacheEntry(input, text);
   scheduleTranslationCacheSave(mode, cache);
 }
 
@@ -170,6 +172,7 @@ function createCacheEntry(input: NormalTranslationCacheInput, text: string | nul
   return {
     key: input.tid,
     sourceText: input.sourceText,
+    targetLanguage: normalizeTargetLanguage(input.targetLanguage),
     text,
     updatedAt: Date.now(),
   };
@@ -179,7 +182,12 @@ function isEntryMatched(
   entry: TranslationCacheEntry | undefined,
   input: NormalTranslationCacheInput,
 ): boolean {
-  return Boolean(entry && entry.key === input.tid && entry.sourceText === input.sourceText);
+  return Boolean(
+    entry
+      && entry.key === input.tid
+      && entry.sourceText === input.sourceText
+      && normalizeTargetLanguage(entry.targetLanguage) === normalizeTargetLanguage(input.targetLanguage),
+  );
 }
 
 function readPreviewCache(mode: TranslationCacheMode): Record<string, TranslationCacheEntry> {
@@ -200,6 +208,14 @@ function pruneCache(cache: Record<string, TranslationCacheEntry>): Record<string
       .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
       .slice(0, maxCacheEntries),
   );
+}
+
+function createScopedCacheKey(input: NormalTranslationCacheInput): string {
+  return `${normalizeTargetLanguage(input.targetLanguage)}:${input.tid}`;
+}
+
+function normalizeTargetLanguage(targetLanguage: string | undefined): string {
+  return targetLanguage?.trim().toLowerCase() || 'default';
 }
 
 function getCacheModes(): TranslationCacheMode[] {

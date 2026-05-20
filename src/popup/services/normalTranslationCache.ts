@@ -13,6 +13,7 @@ import { createTranslationCacheKey } from './translationCacheKey';
 export async function readCachedNormalTranslation(
   config: TranslationModeConfig,
   input: NormalTranslationInput,
+  targetLanguage: string,
 ): Promise<NormalTranslationResult | undefined> {
   if (!shouldUseNormalTranslationCache(config)) {
     return undefined;
@@ -21,6 +22,7 @@ export async function readCachedNormalTranslation(
   const tid = await createTranslationCacheKey(input.text);
   const cached = await readNormalTranslationCache({
     sourceText: input.text,
+    targetLanguage,
     tid,
   });
 
@@ -44,6 +46,7 @@ export async function writeCachedNormalTranslation(
   config: TranslationModeConfig,
   sourceText: string,
   text: string | null,
+  targetLanguage: string,
 ): Promise<void> {
   if (!shouldUseNormalTranslationCache(config)) {
     return;
@@ -51,6 +54,7 @@ export async function writeCachedNormalTranslation(
 
   await writeNormalTranslationCache({
     sourceText,
+    targetLanguage,
     tid: await createTranslationCacheKey(sourceText),
   }, text);
 }
