@@ -1,7 +1,7 @@
 import type { TextParseModeConfig, TextParseModeConfigMap, TextParseModeKey } from '../popup/types/textParseMode';
 import type { RuntimeSettings } from '../popup/types/runtimeSettings';
 import type { ApiConfig } from '../popup/types/api';
-import type { TranslationModeConfig } from '../popup/types/translationMode';
+import type { TranslationModeConfig, TranslationModeKey } from '../popup/types/translationMode';
 
 /**
  * 可标记文本宿主元素。
@@ -44,6 +44,7 @@ export interface TextParseRuntimeConfig {
   configMap: TextParseModeConfigMap;
   markerColor: string;
   runtimeSettings: RuntimeSettings;
+  translationMode: TranslationModeKey;
   translationConfig: TranslationModeConfig;
   apiConfig: ApiConfig;
   targetLanguage: string;

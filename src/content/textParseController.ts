@@ -266,6 +266,10 @@ async function translateAndWrite(
   }
 
   try {
+    if (runtimeConfig.translationMode !== 'normal') {
+      return;
+    }
+
     const result = await translateNormalMode(
       runtimeConfig.apiConfig,
       runtimeConfig.translationConfig,

@@ -80,3 +80,40 @@ body {
   --el-fill-color-blank: var(--translator-container);
   --el-fill-color-light: var(--translator-button);
 }
+
+.page-shell {
+  width: 100%;
+  min-height: 100%;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding: 12px;
+  background: var(--translator-background);
+}
+
+.page-action-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.config-block {
+  display: grid;
+  gap: 8px;
+}
+
+.block-title,
+.panel-title {
+  margin: 0;
+  color: var(--translator-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.block-description,
+.panel-description {
+  margin: -2px 0 0;
+  color: var(--translator-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}

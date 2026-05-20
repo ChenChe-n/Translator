@@ -1,6 +1,9 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.api')">
-    <PageClearButton @clear="handleClearPage" />
+    <div class="page-action-row">
+      <ApiTransferButtons @imported="handleImportApiConfig" />
+      <PageClearButton @clear="handleClearPage" />
+    </div>
     <section class="config-block">
       <h2 class="block-title">{{ t('api.models.title') }}</h2>
       <p class="block-description">{{ t('api.models.description') }}</p>
@@ -37,6 +40,7 @@ import PageClearButton from '../components/common/PageClearButton.vue';
 import ApiConfigForm from '../components/api/ApiConfigForm.vue';
 import ApiConfigTabs from '../components/api/ApiConfigTabs.vue';
 import ApiCheckResultList from '../components/api/ApiCheckResultList.vue';
+import ApiTransferButtons from '../components/api/ApiTransferButtons.vue';
 import ModelUsageStats from '../components/usage/ModelUsageStats.vue';
 import { useI18n } from '../composables/useI18n';
 import { createDefaultApiCheckResults, runApiHealthChecks } from '../services/apiHealthChecks';
@@ -120,6 +124,12 @@ async function handleClearPage(): Promise<void> {
   modelUsage.value = [];
   usageSettings.value = nextUsageSettings;
   ElMessage.success(t('common.cleared'));
+}
+
+async function handleImportApiConfig(state: ApiConfigState): Promise<void> {
+  Object.assign(configState, state);
+  configExpanded.value = false;
+  await refreshCheckResults();
 }
 
 async function handleRunChecks(): Promise<void> {
@@ -295,27 +305,6 @@ function mergeResults(results: ApiCheckResult[]): ApiCheckResult[] {
   width: 100%;
   display: grid;
   gap: 12px;
-  padding: 12px;
-  background: var(--translator-background);
-}
-
-.config-block {
-  display: grid;
-  gap: 8px;
-}
-
-.block-title {
-  margin: 0;
-  color: var(--translator-text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.block-description {
-  margin: -2px 0 0;
-  color: var(--translator-muted);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .config-shell {

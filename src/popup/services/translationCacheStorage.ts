@@ -1,35 +1,18 @@
-import type { TranslationModeKey } from '../types/translationMode';
-
-export type TranslationCacheSortKey = 'sourceText' | 'tid';
-
-export interface NormalTranslationCacheInput {
-  sourceText: string;
-  targetLanguage: string;
-  tid: string;
-}
-
-export interface TranslationCacheViewEntry {
-  sourceText: string;
-  targetLanguage: string;
-  text: string | null;
-  tid: string;
-  updatedAt: number;
-}
-
-export interface TranslationCacheStats {
-  count: number;
-  mode: TranslationCacheMode;
-}
-
-interface TranslationCacheEntry {
-  key: string;
-  sourceText: string;
-  targetLanguage: string;
-  text: string | null;
-  updatedAt: number;
-}
-
-export type TranslationCacheMode = TranslationModeKey;
+import type {
+  NormalTranslationCacheInput,
+  TranslationCacheEntry,
+  TranslationCacheMode,
+  TranslationCacheSortKey,
+  TranslationCacheStats,
+  TranslationCacheViewEntry,
+} from '../types/translationCache';
+export type {
+  NormalTranslationCacheInput,
+  TranslationCacheMode,
+  TranslationCacheSortKey,
+  TranslationCacheStats,
+  TranslationCacheViewEntry,
+} from '../types/translationCache';
 
 export const TRANSLATION_CACHE_STORAGE_KEYS: Record<TranslationCacheMode, string> = {
   normal: 'Translator.translationCache.normal',
@@ -153,6 +136,30 @@ export async function loadTranslationCacheStats(mode: TranslationCacheMode): Pro
     mode,
     count: Object.keys(cache).length,
   };
+}
+
+/**
+ * 导出指定模式的缓存快照。
+ *
+ * @param mode 翻译模式。
+ * @returns 缓存展示条目。
+ */
+export async function exportTranslationCacheEntries(mode: TranslationCacheMode): Promise<TranslationCacheViewEntry[]> {
+  return Object.values(await loadTranslationCache(mode)).map(toViewEntry);
+}
+
+/**
+ * 导入指定模式的缓存快照。
+ *
+ * @param mode 翻译模式。
+ * @param entries 缓存展示条目。
+ * @returns 无返回值。
+ */
+export async function importTranslationCacheEntries(
+  mode: TranslationCacheMode,
+  entries: TranslationCacheViewEntry[],
+): Promise<void> {
+  await saveTranslationCache(mode, Object.fromEntries(entries.map(toStoragePair)));
 }
 
 async function readTranslationCache(
@@ -280,6 +287,25 @@ function toViewEntry(entry: TranslationCacheEntry): TranslationCacheViewEntry {
     tid: entry.key,
     updatedAt: entry.updatedAt,
   };
+}
+
+function toStoragePair(entry: TranslationCacheViewEntry): [string, TranslationCacheEntry] {
+  const input = {
+    sourceText: entry.sourceText,
+    targetLanguage: entry.targetLanguage,
+    tid: entry.tid,
+  };
+
+  return [
+    createScopedCacheKey(input),
+    {
+      key: entry.tid,
+      sourceText: entry.sourceText,
+      targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
+      text: entry.text,
+      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : Date.now(),
+    },
+  ];
 }
 
 function compareEntries(

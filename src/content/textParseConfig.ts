@@ -5,7 +5,7 @@ import {
 import { loadApiConfig } from '../popup/services/apiConfigStorage';
 import { loadLocale } from '../i18n/localeStorage';
 import { loadRuntimeSettings } from '../popup/services/runtimeSettingsStorage';
-import { loadTranslationModeConfigMap } from '../popup/services/translationModeStorage';
+import { loadActiveTranslationMode, loadTranslationModeConfigMap } from '../popup/services/translationModeStorage';
 import { dayColors, loadThemeSchemeState } from '../popup/services/themeSchemeStorage';
 import type { TextParseRuntimeConfig } from './textParseTypes';
 
@@ -15,12 +15,22 @@ import type { TextParseRuntimeConfig } from './textParseTypes';
  * @returns 文本解析运行配置。
  */
 export async function loadTextParseRuntimeConfig(): Promise<TextParseRuntimeConfig> {
-  const [configMap, activeMode, themeState, runtimeSettings, translationConfigMap, apiConfig, targetLanguage] = await Promise.all([
+  const [
+    configMap,
+    activeMode,
+    themeState,
+    runtimeSettings,
+    translationConfigMap,
+    activeTranslationMode,
+    apiConfig,
+    targetLanguage,
+  ] = await Promise.all([
     loadTextParseModeConfigMap(),
     loadActiveTextParseMode(),
     loadThemeSchemeState(),
     loadRuntimeSettings(),
     loadTranslationModeConfigMap(),
+    loadActiveTranslationMode(),
     loadApiConfig(),
     loadLocale(),
   ]);
@@ -32,7 +42,8 @@ export async function loadTextParseRuntimeConfig(): Promise<TextParseRuntimeConf
     configMap,
     markerColor: activeScheme?.colors.marker ?? dayColors.marker,
     runtimeSettings,
-    translationConfig: translationConfigMap.normal,
+    translationMode: activeTranslationMode,
+    translationConfig: translationConfigMap[activeTranslationMode],
     apiConfig,
     targetLanguage,
   };

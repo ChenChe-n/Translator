@@ -4,7 +4,14 @@ import { CONFIG_STATE_STORAGE_KEY, loadApiConfigState, saveApiConfigState } from
 import { RUNTIME_SETTINGS_KEY, loadRuntimeSettings, saveRuntimeSettings } from './runtimeSettingsStorage';
 import { ACTIVE_TEXT_PARSE_MODE_KEY, loadActiveTextParseMode, loadTextParseModeConfigMap, saveActiveTextParseMode, saveTextParseModeConfigMap, TEXT_PARSE_MODE_STORAGE_KEYS } from './textParseModeStorage';
 import { THEME_STORAGE_KEY, loadThemeSchemeState, saveThemeSchemeState } from './themeSchemeStorage';
-import { TRANSLATION_MODE_STORAGE_KEYS, loadTranslationModeConfigMap, saveTranslationModeConfigMap } from './translationModeStorage';
+import {
+  ACTIVE_TRANSLATION_MODE_KEY,
+  TRANSLATION_MODE_STORAGE_KEYS,
+  loadActiveTranslationMode,
+  loadTranslationModeConfigMap,
+  saveActiveTranslationMode,
+  saveTranslationModeConfigMap,
+} from './translationModeStorage';
 import type { ApiConfigState } from '../types/api';
 import type { RuntimeSettings } from '../types/runtimeSettings';
 import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textParseMode';
@@ -21,6 +28,9 @@ export interface ExportedConfigPackage {
     activeMode: TextParseModeKey;
     configMap: TextParseModeConfigMap;
   };
+  translationMode: {
+    activeMode: keyof TranslationModeConfigMap;
+  };
   themeSchemeState: ThemeSchemeState;
   translationModeConfigMap: TranslationModeConfigMap;
 }
@@ -31,11 +41,21 @@ export interface ExportedConfigPackage {
  * @returns JSON 配置文本。
  */
 export async function exportConfigJson(): Promise<string> {
-  const [locale, themeSchemeState, runtimeSettings, translationModeConfigMap, textParseModeConfigMap, activeTextParseMode, apiConfigState] = await Promise.all([
+  const [
+    locale,
+    themeSchemeState,
+    runtimeSettings,
+    translationModeConfigMap,
+    activeTranslationMode,
+    textParseModeConfigMap,
+    activeTextParseMode,
+    apiConfigState,
+  ] = await Promise.all([
     loadLocale(),
     loadThemeSchemeState(),
     loadRuntimeSettings(),
     loadTranslationModeConfigMap(),
+    loadActiveTranslationMode(),
     loadTextParseModeConfigMap(),
     loadActiveTextParseMode(),
     loadApiConfigState(),
@@ -47,6 +67,9 @@ export async function exportConfigJson(): Promise<string> {
     locale,
     themeSchemeState,
     runtimeSettings,
+    translationMode: {
+      activeMode: activeTranslationMode,
+    },
     translationModeConfigMap,
     textParseMode: {
       activeMode: activeTextParseMode,
@@ -70,6 +93,7 @@ export async function importConfigJson(json: string): Promise<ExportedConfigPack
     saveThemeSchemeState(configPackage.themeSchemeState),
     saveRuntimeSettings(configPackage.runtimeSettings),
     saveTranslationModeConfigMap(configPackage.translationModeConfigMap),
+    saveActiveTranslationMode(configPackage.translationMode.activeMode),
     saveTextParseModeConfigMap(configPackage.textParseMode.configMap),
     saveActiveTextParseMode(configPackage.textParseMode.activeMode),
     saveApiConfigState(configPackage.apiConfigState),
@@ -98,6 +122,7 @@ function normalizeConfigPackage(input: Partial<ExportedConfigPackage>): Exported
 
   const locale = input.locale;
   const activeMode = input.textParseMode?.activeMode;
+  const activeTranslationMode = normalizeTranslationMode(input.translationMode?.activeMode);
 
   if (locale !== 'zh-hans' && locale !== 'en-us') {
     throw new Error('configImport.errors.invalidJson');
@@ -113,6 +138,9 @@ function normalizeConfigPackage(input: Partial<ExportedConfigPackage>): Exported
     locale,
     themeSchemeState: requireObject(input.themeSchemeState, THEME_STORAGE_KEY),
     runtimeSettings: requireObject(input.runtimeSettings, RUNTIME_SETTINGS_KEY),
+    translationMode: {
+      activeMode: activeTranslationMode,
+    },
     translationModeConfigMap: requireObject(input.translationModeConfigMap, TRANSLATION_MODE_STORAGE_KEYS.normal),
     textParseMode: {
       activeMode,
@@ -140,9 +168,14 @@ export function getConfigStorageKeys(): string[] {
     LOCALE_STORAGE_KEY,
     THEME_STORAGE_KEY,
     RUNTIME_SETTINGS_KEY,
+    ACTIVE_TRANSLATION_MODE_KEY,
     ...Object.values(TRANSLATION_MODE_STORAGE_KEYS),
     ACTIVE_TEXT_PARSE_MODE_KEY,
     ...Object.values(TEXT_PARSE_MODE_STORAGE_KEYS),
     CONFIG_STATE_STORAGE_KEY,
   ];
+}
+
+function normalizeTranslationMode(value: unknown): keyof TranslationModeConfigMap {
+  return value === 'context' ? 'context' : 'normal';
 }

@@ -1,6 +1,13 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.monitor')">
-    <PageClearButton @clear="handleClearPage" />
+    <div class="page-action-row">
+      <JsonTransferButtons
+        :allow-import="false"
+        :export-label="t('monitorTransfer.export')"
+        @export="handleExportMonitorData"
+      />
+      <PageClearButton @clear="handleClearPage" />
+    </div>
     <CacheStatsPanel :normal-count="cacheStats.normal" :context-count="cacheStats.context" />
     <TextParseDurationChart :metrics="metrics" />
     <ModelCallLogPanel :logs="modelCallLogs" />
@@ -11,6 +18,7 @@
 import { ElMessage } from 'element-plus';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useI18n } from '../composables/useI18n';
+import JsonTransferButtons from '../components/common/JsonTransferButtons.vue';
 import PageClearButton from '../components/common/PageClearButton.vue';
 import CacheStatsPanel from '../components/monitor/CacheStatsPanel.vue';
 import ModelCallLogPanel from '../components/monitor/ModelCallLogPanel.vue';
@@ -18,6 +26,8 @@ import TextParseDurationChart from '../components/monitor/TextParseDurationChart
 import { MODEL_CALL_LOG_KEY, clearModelCallLogs, loadModelCallLogs } from '../services/modelCallLogStorage';
 import { TEXT_PARSE_METRICS_KEY, clearTextParseMetrics, loadTextParseMetrics } from '../services/textParseMetricsStorage';
 import { TRANSLATION_CACHE_STORAGE_KEYS, loadTranslationCacheStats } from '../services/translationCacheStorage';
+import { downloadJsonFile } from '../services/jsonFileTransfer';
+import { exportMonitorDataJson } from '../services/monitorDataExport';
 import type { ModelCallLog } from '../types/modelCall';
 import type { TextParseMetric } from '../types/textParseMetrics';
 
@@ -44,6 +54,11 @@ async function handleClearPage(): Promise<void> {
   metrics.value = [];
   modelCallLogs.value = [];
   ElMessage.success(t('common.cleared'));
+}
+
+async function handleExportMonitorData(): Promise<void> {
+  downloadJsonFile(await exportMonitorDataJson(), 'translator-monitor-data');
+  ElMessage.success(t('monitorTransfer.exported'));
 }
 
 async function handleStorageChanged(changes: Record<string, chrome.storage.StorageChange>, areaName: string): Promise<void> {
@@ -86,4 +101,5 @@ function shouldRefreshCacheStats(changes: Record<string, chrome.storage.StorageC
   padding: 12px;
   background: var(--translator-background);
 }
+
 </style>

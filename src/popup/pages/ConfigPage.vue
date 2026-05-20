@@ -83,9 +83,11 @@ import {
 } from '../services/runtimeSettingsStorage';
 import { createThemeScheme } from '../services/themeSchemeStorage';
 import {
+  loadActiveTranslationMode,
   clearTranslationModeConfigMap,
   createDefaultTranslationModeConfigMap,
   loadTranslationModeConfigMap,
+  saveActiveTranslationMode,
   saveTranslationModeConfigMap,
 } from '../services/translationModeStorage';
 import { clearTranslationCaches } from '../services/translationCacheStorage';
@@ -121,15 +123,17 @@ const activeScheme = computed(() =>
 const activeColors = computed(() => (activeScheme.value ? resolveThemeColors(activeScheme.value) : themeState.schemes[0].colors));
 
 onMounted(async () => {
-  const [translationModeConfig, textParseModeConfig, nextRuntimeSettings] = await Promise.all([
+  const [translationModeConfig, textParseModeConfig, nextRuntimeSettings, nextTranslationMode] = await Promise.all([
     loadTranslationModeConfigMap(),
     loadTextParseModeConfigMap(),
     loadRuntimeSettings(),
+    loadActiveTranslationMode(),
   ]);
 
   Object.assign(translationModeConfigMap, translationModeConfig);
   Object.assign(textParseModeConfigMap, textParseModeConfig);
   Object.assign(runtimeSettings, nextRuntimeSettings);
+  activeTranslationMode.value = nextTranslationMode;
   activeTextParseMode.value = await loadActiveTextParseMode();
 });
 
@@ -203,13 +207,13 @@ async function handleConfigImported(configPackage: ExportedConfigPackage): Promi
   Object.assign(translationModeConfigMap, configPackage.translationModeConfigMap);
   Object.assign(textParseModeConfigMap, configPackage.textParseMode.configMap);
   await setLocale(configPackage.locale);
+  activeTranslationMode.value = configPackage.translationMode.activeMode;
   activeTextParseMode.value = configPackage.textParseMode.activeMode;
   collapsePanels();
   applyThemeColors(activeColors.value);
 }
 
 function collapsePanels(): void {
-  activeTranslationMode.value = 'normal';
   schemeExpanded.value = false;
   translationModeExpanded.value = false;
   textParseModeExpanded.value = false;
@@ -223,6 +227,7 @@ function handleSelectTranslationMode(mode: TranslationModeKey): void {
 
   activeTranslationMode.value = mode;
   translationModeExpanded.value = true;
+  void saveActiveTranslationMode(mode);
 }
 
 async function handleTranslationModeUpdate(configMap: TranslationModeConfigMap): Promise<void> {
@@ -275,25 +280,9 @@ async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promis
 
 <style scoped>
 .page-shell {
-  width: 100%;
-  min-height: 100%;
-  display: grid;
-  align-content: start;
   gap: 12px;
-  padding: 12px;
-  background: var(--translator-background);
 }
 
-.page-action-row {
-  display: flex;
-  gap: 8px;
-  justify-content: space-between;
-}
-
-.config-block {
-  display: grid;
-  gap: 8px;
-}
 .scheme-shell {
   display: grid;
   gap: 12px;
@@ -302,20 +291,6 @@ async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promis
   border-radius: 8px;
   background: var(--translator-container);
   box-shadow: 0 8px 20px var(--translator-shadow);
-}
-
-.block-title {
-  margin: 0;
-  color: var(--translator-text);
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.block-description {
-  margin: -2px 0 0;
-  color: var(--translator-muted);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .language-panel {

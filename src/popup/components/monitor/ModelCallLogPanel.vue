@@ -7,12 +7,13 @@
     <ElEmpty v-if="logs.length === 0" :description="t('monitor.emptyModelCalls')" :image-size="48" />
     <div v-else class="call-list">
       <article v-for="log in orderedLogs" :key="log.id" class="call-item">
-        <div class="meta-row">
+        <button class="summary-row" type="button" @click="toggleExpanded(log.id)">
           <span class="model-name">{{ log.model || '-' }}</span>
           <span class="call-time">{{ formatDateTime(log.createdAt) }}</span>
+          <span class="token-count">{{ formatTokenCount(log) }}</span>
           <span class="status-pill" :class="log.status">{{ formatStatus(log) }}</span>
-        </div>
-        <div class="payload-grid">
+        </button>
+        <div v-if="expandedIds.has(log.id)" class="payload-grid">
           <section class="payload-box">
             <span class="payload-label">{{ t('monitor.modelCallInput') }}</span>
             <pre>{{ log.input }}</pre>
@@ -29,7 +30,7 @@
 
 <script setup lang="ts">
 import { ElEmpty, ElTag } from 'element-plus';
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 import { useI18n } from '../../composables/useI18n';
 import type { ModelCallLog } from '../../types/modelCall';
 
@@ -38,7 +39,20 @@ const props = defineProps<{
 }>();
 
 const { t } = useI18n();
+const expandedIds = ref(new Set<string>());
 const orderedLogs = computed(() => [...props.logs].sort((a, b) => b.createdAt - a.createdAt));
+
+function toggleExpanded(id: string): void {
+  const nextIds = new Set(expandedIds.value);
+
+  if (nextIds.has(id)) {
+    nextIds.delete(id);
+  } else {
+    nextIds.add(id);
+  }
+
+  expandedIds.value = nextIds;
+}
 
 function formatDateTime(value: number): string {
   return new Intl.DateTimeFormat(undefined, {
@@ -50,12 +64,20 @@ function formatDateTime(value: number): string {
   }).format(new Date(value));
 }
 
+function formatTokenCount(log: ModelCallLog): string {
+  return t('monitor.modelCallTokens', { count: estimateTokenCount(log.input) + estimateTokenCount(log.output) });
+}
+
 function formatStatus(log: ModelCallLog): string {
   if (log.status === 'error') {
     return t('monitor.modelCallError');
   }
 
   return log.status === 'finished' ? t('monitor.modelCallFinished') : t('monitor.modelCallRunning');
+}
+
+function estimateTokenCount(content: string): number {
+  return Math.max(0, Math.round(content.trim().length / 4));
 }
 </script>
 
@@ -70,7 +92,7 @@ function formatStatus(log: ModelCallLog): string {
 }
 
 .call-head,
-.meta-row {
+.summary-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -91,15 +113,27 @@ function formatStatus(log: ModelCallLog): string {
 
 .call-item {
   display: grid;
-  gap: 8px;
-  padding: 10px;
+  gap: 6px;
+  padding: 8px;
   border: 1px solid var(--translator-border);
   border-radius: 8px;
   background: var(--translator-button);
 }
 
-.model-name {
+.summary-row {
+  width: 100%;
   min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.model-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 96px;
   overflow: hidden;
   color: var(--translator-text);
   font-size: 12px;
@@ -109,12 +143,21 @@ function formatStatus(log: ModelCallLog): string {
 }
 
 .call-time {
+  flex: 0 0 auto;
+  color: var(--translator-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.token-count {
+  flex: 0 0 auto;
   color: var(--translator-muted);
   font-size: 11px;
   white-space: nowrap;
 }
 
 .status-pill {
+  flex: 0 0 auto;
   padding: 2px 6px;
   border-radius: 999px;
   color: var(--translator-button);

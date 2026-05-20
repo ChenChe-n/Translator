@@ -14,6 +14,7 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   'Use null when the value is already in the target locale, empty, non-text noise, or should not be translated.';
 
 export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
+export const ACTIVE_TRANSLATION_MODE_KEY = 'Translator.translationMode.activeMode';
 export const TRANSLATION_MODE_STORAGE_KEYS: Record<TranslationModeKey, string> = {
   normal: 'Translator.translationMode.normal',
   context: 'Translator.translationMode.context',
@@ -56,12 +57,47 @@ export async function saveTranslationModeConfigMap(configMap: TranslationModeCon
 }
 
 /**
+ * 读取当前启用的翻译模式。
+ *
+ * @returns 当前翻译模式。
+ */
+export async function loadActiveTranslationMode(): Promise<TranslationModeKey> {
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    return normalizeMode(localStorage.getItem(ACTIVE_TRANSLATION_MODE_KEY));
+  }
+
+  const stored = await chrome.storage.local.get(ACTIVE_TRANSLATION_MODE_KEY);
+  return normalizeMode(stored[ACTIVE_TRANSLATION_MODE_KEY]);
+}
+
+/**
+ * 保存当前启用的翻译模式。
+ *
+ * @param mode 翻译模式。
+ * @returns 标准化后的翻译模式。
+ */
+export async function saveActiveTranslationMode(mode: TranslationModeKey): Promise<TranslationModeKey> {
+  const nextMode = normalizeMode(mode);
+
+  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+    localStorage.setItem(ACTIVE_TRANSLATION_MODE_KEY, nextMode);
+    return nextMode;
+  }
+
+  await chrome.storage.local.set({
+    [ACTIVE_TRANSLATION_MODE_KEY]: nextMode,
+  });
+  return nextMode;
+}
+
+/**
  * 清空翻译模式配置。
  *
  * @returns 默认翻译模式配置集合。
  */
 export async function clearTranslationModeConfigMap(): Promise<TranslationModeConfigMap> {
   await clearConfigMapStorage(storageOptions);
+  await saveActiveTranslationMode('normal');
   return createDefaultTranslationModeConfigMap();
 }
 
@@ -123,4 +159,8 @@ function normalizeModeConfig(
 
 function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function normalizeMode(value: unknown): TranslationModeKey {
+  return value === 'context' ? 'context' : 'normal';
 }
