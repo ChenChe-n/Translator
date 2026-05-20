@@ -7,7 +7,10 @@
         @export="handleExportCache"
         @import="handleImportCache"
       />
-      <ElTag size="small" effect="plain">{{ activeModeLabel }}</ElTag>
+      <div class="cache-action-right">
+        <ElTag size="small" effect="plain">{{ activeModeLabel }}</ElTag>
+        <PageClearButton @clear="handleClearCache" />
+      </div>
     </div>
     <section class="cache-block">
       <h2 class="block-title">{{ t('cache.title') }}</h2>
@@ -56,11 +59,14 @@
 <script setup lang="ts">
 import { ElMessage, ElPagination, ElSegmented, ElTable, ElTableColumn, ElTag } from 'element-plus';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
+import PageClearButton from '../components/common/PageClearButton.vue';
 import JsonTransferButtons from '../components/common/JsonTransferButtons.vue';
 import { useI18n } from '../composables/useI18n';
 import { downloadJsonFile } from '../services/jsonFileTransfer';
 import {
   TRANSLATION_CACHE_STORAGE_KEYS,
+  clearContextTranslationCache,
+  clearNormalTranslationCache,
   loadTranslationCacheLanguages,
 } from '../services/translationCacheStorage';
 import { exportTranslationCacheJson, importTranslationCacheJson } from '../services/translationCacheTransfer';
@@ -127,6 +133,18 @@ async function handleImportCache(json: string): Promise<void> {
   }
 }
 
+async function handleClearCache(): Promise<void> {
+  if (activeMode.value === 'normal') {
+    await clearNormalTranslationCache();
+  } else {
+    await clearContextTranslationCache();
+  }
+
+  activeLanguage.value = '';
+  await refreshCacheView();
+  ElMessage.success(t('common.cleared'));
+}
+
 async function handleStorageChanged(changes: Record<string, chrome.storage.StorageChange>, areaName: string): Promise<void> {
   if (areaName !== 'local') {
     return;
@@ -183,6 +201,12 @@ async function refreshEntries(): Promise<void> {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+}
+
+.cache-action-right {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
 }
 
