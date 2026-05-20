@@ -2,6 +2,7 @@ import type { ApiConfig } from '../types/api';
 import type { ModelCallLog } from '../types/modelCall';
 import { createRequestLog, failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
+import { requestChat } from './openAiCompatibleTransport';
 
 interface ChatResponse {
   choices?: Array<{
@@ -21,12 +22,9 @@ export interface StreamTextOptions {
 
 export interface LoggedChatResponse {
   callLog: ModelCallLog;
+  release: () => void;
   response: Response;
 }
-
-const JSON_HEADERS = {
-  'Content-Type': 'application/json',
-};
 
 /**
  * 请求普通文本输出。
@@ -41,8 +39,8 @@ export async function requestText(config: ApiConfig, prompt: string): Promise<st
   const callLog = await createRequestLog(config, body);
 
   try {
-    const response = await requestChat(config, body);
-    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+    const chatResponse = await requestChat(config, body);
+    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -67,8 +65,8 @@ export async function requestJson(config: ApiConfig, prompt: string): Promise<st
   const callLog = await createRequestLog(config, body);
 
   try {
-    const response = await requestChat(config, body);
-    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+    const chatResponse = await requestChat(config, body);
+    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -107,8 +105,8 @@ export async function requestImage(config: ApiConfig, prompt: string, imageUrl: 
   const callLog = await createRequestLog(config, body);
 
   try {
-    const response = await requestChat(config, body);
-    return await readAndRecordChatContent(config, response, inputTokens, callLog);
+    const chatResponse = await requestChat(config, body);
+    return await readAndRecordChatContent(config, chatResponse.response, inputTokens, callLog, chatResponse.release);
   } catch (error) {
     await failRequestLog(callLog, error);
     throw error;
@@ -131,11 +129,11 @@ export async function requestStream(config: ApiConfig, prompt: string, options: 
   const callLog = await createRequestLog(config, body);
 
   try {
-    const response = await requestChat(config, body);
-    const content = await readStreamContent(response, async (nextContent) => {
+    const chatResponse = await requestChat(config, body);
+    const content = await readStreamContent(chatResponse.response, async (nextContent) => {
       options.onContent?.(nextContent);
       await updateRequestOutput(callLog, nextContent);
-    });
+    }, chatResponse.release);
     await updateRequestOutput(callLog, content, true);
     await recordUsage(config, inputTokens, content);
     return content;
@@ -143,26 +141,6 @@ export async function requestStream(config: ApiConfig, prompt: string, options: 
     await failRequestLog(callLog, error);
     throw error;
   }
-}
-
-async function requestChat(config: ApiConfig, body: Record<string, unknown>): Promise<Response> {
-  const response = await fetch(buildChatUrl(config.baseUrl), {
-    method: 'POST',
-    headers: {
-      ...JSON_HEADERS,
-      Authorization: `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: config.model,
-      ...body,
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error(await readErrorText(response));
-  }
-
-  return response;
 }
 
 /**
@@ -176,9 +154,11 @@ export async function requestChatResponse(config: ApiConfig, body: Record<string
   const callLog = await createRequestLog(config, body);
 
   try {
+    const chatResponse = await requestChat(config, body);
     return {
       callLog,
-      response: await requestChat(config, body),
+      release: chatResponse.release,
+      response: chatResponse.response,
     };
   } catch (error) {
     await failRequestLog(callLog, error);
@@ -191,50 +171,60 @@ async function readAndRecordChatContent(
   response: Response,
   inputTokens: number,
   callLog: ModelCallLog,
+  release: () => void,
 ): Promise<string> {
-  const data = (await response.json()) as ChatResponse;
-  const content = data.choices?.[0]?.message?.content ?? '';
-  await updateRequestOutput(callLog, content, true);
-  await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
-  return content;
+  try {
+    const data = (await response.json()) as ChatResponse;
+    const content = data.choices?.[0]?.message?.content ?? '';
+    await updateRequestOutput(callLog, content, true);
+    await recordUsage(config, data.usage?.prompt_tokens ?? inputTokens, content, data.usage?.completion_tokens);
+    return content;
+  } finally {
+    release();
+  }
 }
 
 async function readStreamContent(
   response: Response,
   onContent?: (content: string) => void | Promise<void>,
+  release: () => void = () => undefined,
 ): Promise<string> {
-  const reader = response.body?.getReader();
-  const decoder = new TextDecoder();
-  let content = '';
-  let buffer = '';
+  try {
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let content = '';
+    let buffer = '';
 
-  if (!reader) {
-    throw new Error('api.errors.streamUnsupported');
-  }
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
+    if (!reader) {
+      throw new Error('api.errors.streamUnsupported');
     }
 
-    buffer += decoder.decode(value, { stream: true });
-    const parsed = parseStreamBuffer(buffer);
-    buffer = parsed.rest;
+    while (true) {
+      const { done, value } = await reader.read();
+
+      if (done) {
+        break;
+      }
+
+      buffer += decoder.decode(value, { stream: true });
+      const parsed = parseStreamBuffer(buffer);
+      buffer = parsed.rest;
+      content += parsed.content;
+      if (parsed.content) {
+        await onContent?.(content);
+      }
+    }
+
+    buffer += decoder.decode();
+    const parsed = parseStreamBuffer(`${buffer}\n`);
     content += parsed.content;
     if (parsed.content) {
       await onContent?.(content);
     }
+    return content;
+  } finally {
+    release();
   }
-
-  buffer += decoder.decode();
-  const parsed = parseStreamBuffer(`${buffer}\n`);
-  content += parsed.content;
-  if (parsed.content) {
-    await onContent?.(content);
-  }
-  return content;
 }
 
 function parseStreamBuffer(buffer: string): {
@@ -290,25 +280,6 @@ function createTextBody(prompt: string): Record<string, unknown> {
       },
     ],
   };
-}
-
-async function readErrorText(response: Response): Promise<string> {
-  try {
-    const data = (await response.json()) as { error?: { message?: string } };
-    return data.error?.message ?? response.statusText;
-  } catch {
-    return response.statusText;
-  }
-}
-
-function buildChatUrl(url: string): string {
-  const normalizedUrl = url.trim().replace(/\/+$/, '');
-
-  if (normalizedUrl.endsWith('/chat/completions')) {
-    return normalizedUrl;
-  }
-
-  return `${normalizedUrl}/chat/completions`;
 }
 
 async function recordUsage(

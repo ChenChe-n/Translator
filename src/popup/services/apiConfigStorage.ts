@@ -11,6 +11,7 @@ const defaultConfig: ApiConfig = {
   baseUrl: 'https://api.openai.com/v1',
   apiKey: '',
   model: '',
+  maxConcurrency: 4,
 };
 
 /**
@@ -154,7 +155,12 @@ function normalizeConfig(config: Partial<ApiConfig>): ApiConfig {
   return {
     ...nextConfig,
     name: nextConfig.name || nextConfig.model || '',
+    maxConcurrency: normalizeConcurrency(nextConfig.maxConcurrency),
   };
+}
+
+function normalizeConcurrency(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.min(65536, Math.max(1, Math.floor(value))) : 4;
 }
 
 /**

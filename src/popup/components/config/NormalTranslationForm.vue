@@ -69,6 +69,13 @@
       <ElCheckbox v-if="showNormalOptions" :model-value="config.options.enableCache" @change="handleEnableCacheUpdate">
         {{ t('translationMode.enableCache') }}
       </ElCheckbox>
+      <ElCheckbox
+        v-if="showNormalOptions"
+        :model-value="config.options.showTranslatingMarker"
+        @change="handleShowTranslatingMarkerUpdate"
+      >
+        {{ t('translationMode.showTranslatingMarker') }}
+      </ElCheckbox>
     </div>
   </ElForm>
 </template>
@@ -121,6 +128,10 @@ function handlePreserveFormattingUpdate(value: string | number | boolean): void 
 
 function handleEnableCacheUpdate(value: string | number | boolean): void {
   updateOptions({ enableCache: Boolean(value) });
+}
+
+function handleShowTranslatingMarkerUpdate(value: string | number | boolean): void {
+  updateOptions({ showTranslatingMarker: Boolean(value) });
 }
 
 function updateParameters(parameters: Partial<TranslationModeConfig['parameters']>): void {

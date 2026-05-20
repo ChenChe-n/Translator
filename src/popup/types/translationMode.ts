@@ -20,6 +20,7 @@ export interface TranslationModeParameters {
 export interface TranslationModeOptions {
   preserveFormatting: boolean;
   enableCache: boolean;
+  showTranslatingMarker: boolean;
 }
 
 /**

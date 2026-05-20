@@ -1,4 +1,10 @@
-import { applyTextMarkers, clearTextMarkers } from './textMarker';
+import {
+  applyTextMarkers,
+  clearTextMarkers,
+  clearTranslatingTextMarkers,
+  markTranslatingText,
+  unmarkTranslatingText,
+} from './textMarker';
 import { scanTextReferences } from './textNodeScanner';
 import { loadTextParseRuntimeConfig } from './textParseConfig';
 import type { ParsedTextReference, TextParseRuntimeConfig, TextReferenceOwner } from './textParseTypes';
@@ -12,7 +18,6 @@ import { appendTextParseMetric } from '../popup/services/textParseMetricsStorage
 import { translateNormalMode } from '../popup/services/normalTranslationService';
 
 const minimumDelayMs = 100;
-const maxTranslationConcurrency = 4;
 const translationChunkSize = 24;
 let translationQueueRunning = false;
 
@@ -62,6 +67,7 @@ export function createTextParseController(): { start: () => void } {
     if (!config.runtimeSettings.parseEnabled) {
       window.clearTimeout(scanTimer);
       clearTranslationQueue();
+      clearTranslatingTextMarkers();
       clearTextMarkers();
       restoreOverwrittenReferences(testOverwriteState);
       restoreOverwrittenReferences(translationOverwriteState);
@@ -93,6 +99,7 @@ export function createTextParseController(): { start: () => void } {
 
       if (config.activeConfig.options.overwriteWithTestText) {
         clearTranslationQueue();
+        clearTranslatingTextMarkers();
         restoreOverwrittenReferences(translationOverwriteState);
         translatedReferences = createTranslationTracker();
         overwriteTextReferences([...references.values()], config.activeConfig.options.testText, testOverwriteState);
@@ -122,6 +129,7 @@ export function createTextParseController(): { start: () => void } {
 
     if (shouldResetTranslations(changes)) {
       clearTranslationQueue();
+      clearTranslatingTextMarkers();
       restoreOverwrittenReferences(translationOverwriteState);
       translatedReferences = createTranslationTracker();
     }
@@ -216,7 +224,7 @@ function runTranslationQueue(): void {
 
 async function drainTranslationQueue(): Promise<void> {
   while (translationQueue.length > 0) {
-    const tasks = translationQueue.splice(0, maxTranslationConcurrency);
+    const tasks = translationQueue.splice(0, readTranslationConcurrency(translationQueue[0]));
     await Promise.all(tasks.map((task) => translateAndWrite(
       task.reference,
       task.runtimeConfig,
@@ -230,6 +238,10 @@ async function drainTranslationQueue(): Promise<void> {
   }
 
   translationQueueRunning = false;
+}
+
+function readTranslationConcurrency(task: TranslationTask | undefined): number {
+  return Math.min(65536, Math.max(1, Math.floor(task?.runtimeConfig.apiConfig.maxConcurrency ?? 1)));
 }
 
 function waitForIdleSlice(): Promise<void> {
@@ -249,6 +261,10 @@ async function translateAndWrite(
   translatedReferences: TranslationTracker,
   overwriteState: ReturnType<typeof createTextOverwriteState>,
 ): Promise<void> {
+  if (runtimeConfig.translationConfig.options.showTranslatingMarker) {
+    markTranslatingText(reference, runtimeConfig.markerColor);
+  }
+
   try {
     const result = await translateNormalMode(
       runtimeConfig.apiConfig,
@@ -262,6 +278,8 @@ async function translateAndWrite(
     }
   } catch {
     unmarkTranslated(reference, translatedReferences);
+  } finally {
+    unmarkTranslatingText(reference);
   }
 }
 

@@ -78,6 +78,7 @@ function createModeConfig(mode: TranslationModeKey, prompt: string): Translation
     options: {
       preserveFormatting: true,
       enableCache: mode === 'normal',
+      showTranslatingMarker: false,
     },
   };
 }
@@ -112,6 +113,9 @@ function normalizeModeConfig(
       ...defaultConfig.options,
       ...config?.options,
       enableCache: mode === 'normal' ? config?.options?.enableCache ?? defaultConfig.options.enableCache : false,
+      showTranslatingMarker: mode === 'normal'
+        ? config?.options?.showTranslatingMarker ?? defaultConfig.options.showTranslatingMarker
+        : false,
     },
   };
 }

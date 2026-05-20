@@ -4,7 +4,12 @@ interface MarkedElementState {
   previousColor: string;
 }
 
+interface TranslatingElementState extends MarkedElementState {
+  count: number;
+}
+
 const markedElements = new Map<TextReferenceOwner, MarkedElementState>();
+const translatingElements = new Map<TextReferenceOwner, TranslatingElementState>();
 
 /**
  * 清理文本标记。
@@ -12,12 +17,77 @@ const markedElements = new Map<TextReferenceOwner, MarkedElementState>();
  * @returns 无返回值。
  */
 export function clearTextMarkers(): void {
-  markedElements.forEach((state, element) => {
+  restoreMarkedElements(markedElements);
+}
+
+/**
+ * 标记正在翻译的文本引用。
+ *
+ * @param reference 文本引用。
+ * @param color 标记色。
+ * @returns 无返回值。
+ */
+export function markTranslatingText(reference: ParsedTextReference, color: string): void {
+  if (!isReferenceConnected(reference)) {
+    return;
+  }
+
+  const state = translatingElements.get(reference.owner);
+
+  if (state) {
+    state.count += 1;
+    return;
+  }
+
+  translatingElements.set(reference.owner, {
+    count: 1,
+    previousColor: reference.owner.style.color,
+  });
+  reference.owner.style.color = color;
+}
+
+/**
+ * 取消正在翻译的文本引用标记。
+ *
+ * @param reference 文本引用。
+ * @returns 无返回值。
+ */
+export function unmarkTranslatingText(reference: ParsedTextReference): void {
+  const state = translatingElements.get(reference.owner);
+
+  if (!state) {
+    return;
+  }
+
+  state.count -= 1;
+
+  if (state.count > 0) {
+    return;
+  }
+
+  if (reference.owner.isConnected) {
+    reference.owner.style.color = state.previousColor;
+  }
+
+  translatingElements.delete(reference.owner);
+}
+
+/**
+ * 清理正在翻译的文本标记。
+ *
+ * @returns 无返回值。
+ */
+export function clearTranslatingTextMarkers(): void {
+  restoreMarkedElements(translatingElements);
+}
+
+function restoreMarkedElements(elements: Map<TextReferenceOwner, MarkedElementState | TranslatingElementState>): void {
+  elements.forEach((state, element) => {
     if (element.isConnected) {
       element.style.color = state.previousColor;
     }
   });
-  markedElements.clear();
+  elements.clear();
 }
 
 /**

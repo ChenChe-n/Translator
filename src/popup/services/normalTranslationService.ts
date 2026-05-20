@@ -6,7 +6,8 @@ import { readCachedNormalTranslation, writeCachedNormalTranslation } from './nor
 import { requestChatResponse } from './openAiCompatibleClient';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
-import { parseChatJsonlResults, parseCompleteTranslationResults, parseTranslationResults, readSseContent } from './translationJsonlParser';
+import { parseChatJsonlResults } from './translationJsonlParser';
+import { readJsonlTranslationStream } from './translationStreamReader';
 
 export interface NormalTranslationInput {
   text: string;
@@ -116,19 +117,25 @@ async function flushQueue(): Promise<void> {
 
     if (isStreamResponse(responseInfo.response)) {
       let streamOutput = '';
-      await readJsonlStream(responseInfo.response, idSet, (tid, text) => {
-        if (!results.has(tid)) {
-          results.set(tid, text);
-          resolveMatched(batch, activeConfig, tid, text);
-        }
-      }, async (content) => {
-        streamOutput += content;
-        await updateRequestOutput(activeCallLog, streamOutput);
+      await readJsonlTranslationStream({
+        idSet,
+        release: responseInfo.release,
+        response: responseInfo.response,
+        onResult: (tid, text) => {
+          if (!results.has(tid)) {
+            results.set(tid, text);
+            resolveMatched(batch, activeConfig, tid, text);
+          }
+        },
+        onContent: async (content) => {
+          streamOutput += content;
+          await updateRequestOutput(activeCallLog, streamOutput);
+        },
       });
       await updateRequestOutput(activeCallLog, streamOutput, true);
       await recordTranslationUsage(activeApiConfig, body, streamOutput);
     } else {
-      const responseData = await responseInfo.response.json();
+      const responseData = await readJsonResponse(responseInfo.response, responseInfo.release);
       const content = readChatContent(responseData);
       await updateRequestOutput(activeCallLog, content, true);
       await recordTranslationUsage(activeApiConfig, body, content, responseData);
@@ -223,42 +230,12 @@ function renderPrompt(config: TranslationModeConfig, targetLanguage: string): st
     .replaceAll('{TARGET_LOCALE}', targetLanguage || 'en-us');
 }
 
-async function readJsonlStream(
-  response: Response,
-  idSet: Set<string>,
-  onResult: (tid: string, text: string | null) => void,
-  onContent: (content: string) => void | Promise<void>,
-): Promise<void> {
-  const reader = response.body?.getReader();
-  const decoder = new TextDecoder();
-  let eventBuffer = '';
-  let jsonlBuffer = '';
-
-  if (!reader) {
-    return;
+async function readJsonResponse(response: Response, release: () => void): Promise<unknown> {
+  try {
+    return await response.json();
+  } finally {
+    release();
   }
-
-  while (true) {
-    const { done, value } = await reader.read();
-
-    if (done) {
-      break;
-    }
-
-    eventBuffer += decoder.decode(value, { stream: true });
-    const parsed = readSseContent(eventBuffer);
-    eventBuffer = parsed.rest;
-    if (parsed.content) {
-      await onContent(parsed.content);
-    }
-    jsonlBuffer = parseTranslationResults(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
-  }
-
-  const parsed = readSseContent(`${eventBuffer}${decoder.decode()}\n\n`);
-  if (parsed.content) {
-    await onContent(parsed.content);
-  }
-  parseCompleteTranslationResults(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
 }
 
 function resolveMatched(

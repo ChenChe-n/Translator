@@ -7,6 +7,7 @@ export interface ApiConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
+  maxConcurrency: number;
 }
 
 /**

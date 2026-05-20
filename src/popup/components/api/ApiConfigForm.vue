@@ -12,11 +12,19 @@
     <ElFormItem :label="t('api.form.model')">
       <ElInput v-model="model.model" placeholder="gpt-4.1-mini" clearable />
     </ElFormItem>
+    <ElFormItem :label="t('api.form.maxConcurrency')">
+      <ElInputNumber
+        v-model="model.maxConcurrency"
+        :min="1"
+        :max="65536"
+        controls-position="right"
+      />
+    </ElFormItem>
   </ElForm>
 </template>
 
 <script setup lang="ts">
-import { ElForm, ElFormItem, ElInput } from 'element-plus';
+import { ElForm, ElFormItem, ElInput, ElInputNumber } from 'element-plus';
 import { useI18n } from '../../composables/useI18n';
 import type { ApiConfig } from '../../types/api';
 
@@ -32,5 +40,9 @@ const { t } = useI18n();
 
 .config-form :deep(.el-form-item) {
   margin-bottom: 10px;
+}
+
+.config-form :deep(.el-input-number) {
+  width: 100%;
 }
 </style>
