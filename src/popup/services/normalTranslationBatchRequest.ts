@@ -12,6 +12,33 @@ import { parseChatJsonlResults } from './translationJsonlParser';
 import { normalizeNoTranslationResult } from './translationResultNormalizer';
 import { readJsonlTranslationStream } from './translationStreamReader';
 
+const languageNames: Record<string, string> = {
+  'en-us': '美国英语',
+  'zh-hans': '简体中文',
+};
+const outputExamples: Record<string, string[]> = {
+  'en-us': [
+    '输入：',
+    '{"tid-a":"你好，世界"}',
+    '{"tid-b":"Hello"}',
+    '{"tid-c":"OpenAI"}',
+    '输出：',
+    '{"tid-a":"Hello world"}',
+    '{"tid-b":null}',
+    '{"tid-c":null}',
+  ],
+  'zh-hans': [
+    '输入：',
+    '{"tid-a":"Hello world"}',
+    '{"tid-b":"你好"}',
+    '{"tid-c":"OpenAI"}',
+    '输出：',
+    '{"tid-a":"你好，世界"}',
+    '{"tid-b":null}',
+    '{"tid-c":null}',
+  ],
+};
+
 /**
  * 请求一个普通模式翻译批次。
  *
@@ -68,17 +95,18 @@ function renderPrompt(config: TranslationModeConfig, targetLanguage: string): st
     : '输出纯译文文本';
   return config.prompt
     .replaceAll('{FORMAT_MODE}', preserveText)
-    .replaceAll('{TARGET_LOCALE}', describeTargetLanguage(targetLanguage));
+    .replaceAll('{TARGET_LOCALE}', describeTargetLanguage(targetLanguage))
+    .replaceAll('{OUTPUT_EXAMPLE}', createOutputExample(targetLanguage));
 }
 
 function describeTargetLanguage(targetLanguage: string): string {
   const language = targetLanguage.trim().toLowerCase() || 'en-us';
-  const languageNames: Record<string, string> = {
-    'en-us': '美国英语',
-    'zh-hans': '简体中文',
-  };
-
   return languageNames[language] ?? language;
+}
+
+function createOutputExample(targetLanguage: string): string {
+  const language = targetLanguage.trim().toLowerCase() || 'en-us';
+  return (outputExamples[language] ?? outputExamples['en-us']).join('\n');
 }
 
 async function readBatchResults(

@@ -12,7 +12,8 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   '输出也必须是 JSONL，每个输入行对应一个输出行，TID 必须完全不变。\n' +
   '除非整句已经是目标语言，或整句是领域关键词、专有名词、代码、数字、符号，否则都应该翻译。\n' +
   '整句无需翻译时输出 JSON null；不要输出“不翻译”等说明文字。\n' +
-  '需要翻译时只输出译文字符串。';
+  '需要翻译时只输出译文字符串。\n' +
+  '示例：\n{OUTPUT_EXAMPLE}';
 
 export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
 export const ACTIVE_TRANSLATION_MODE_KEY = 'Translator.translationMode.activeMode';
