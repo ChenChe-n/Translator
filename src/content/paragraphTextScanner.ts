@@ -16,11 +16,17 @@ interface ParagraphScanIndex {
   elementTokens: WeakMap<Element, number>;
   grouped: GroupedReferenceSet;
   references: ParsedTextReference[];
+  visualReferences: ParsedTextReference[];
 }
 
 interface GroupedReferenceSet {
   attributes: WeakMap<TextReferenceOwner, Set<string>>;
   textNodes: WeakSet<Text>;
+}
+
+interface ParagraphRoot {
+  element?: Element;
+  overflowElement?: Element;
 }
 
 /**
@@ -34,7 +40,7 @@ export function scanParagraphGroups(config: TextParseRuntimeConfig): ParsedParag
   const groups: ParsedParagraphGroup[] = [];
   let groupIndex = 0;
 
-  sortReferencesByVisualOrder(index.references).forEach((reference) => {
+  index.visualReferences.forEach((reference) => {
     if (isGrouped(reference, index.grouped)) {
       return;
     }
@@ -60,6 +66,7 @@ function createParagraphScanIndex(references: ParsedTextReference[]): ParagraphS
       textNodes: new WeakSet<Text>(),
     },
     references,
+    visualReferences: sortReferencesByVisualOrder(references),
   };
 
   references.forEach((reference) => addReferenceToAncestors(reference, index));
@@ -88,37 +95,86 @@ function selectParagraphReferences(
   index: ParagraphScanIndex,
   maxTokens: number,
 ): ParsedParagraphReference[] {
-  const element = findHighestFittingElement(reference.owner, index, maxTokens);
-  const references = element ? index.elementRefs.get(element) ?? [reference] : [reference];
-  return sortReferencesByVisualOrder(
+  const root = findParagraphRoot(reference.owner, index, maxTokens);
+  const references = root.element ? index.elementRefs.get(root.element) ?? [reference] : [reference];
+  const elementReferences = sortReferencesByVisualOrder(
     references.filter((item) => !isGrouped(item, index.grouped)),
-  ).map((item) => ({
+  );
+  const selectedReferences = elementReferences.length > 1
+    ? elementReferences
+    : selectOverflowContainerReferences(reference, root.overflowElement, index, maxTokens);
+
+  return selectedReferences.map((item) => ({
     reference: item,
   }));
 }
 
-function findHighestFittingElement(
+function findParagraphRoot(
   owner: TextReferenceOwner,
   index: ParagraphScanIndex,
   maxTokens: number,
-): Element | undefined {
+): ParagraphRoot {
   let highest: Element | undefined;
   let element: Element | null = owner;
 
   while (element && element !== document.body.parentElement) {
     if ((index.elementTokens.get(element) ?? 0) > maxTokens) {
-      break;
+      return {
+        element: highest,
+        overflowElement: element,
+      };
     }
 
     highest = element;
     element = element.parentElement;
   }
 
-  return highest;
+  return { element: highest };
 }
 
 function estimateTextTokens(text: string): number {
   return Math.max(1, Math.round(text.length / 4));
+}
+
+function selectOverflowContainerReferences(
+  reference: ParsedTextReference,
+  overflowElement: Element | undefined,
+  index: ParagraphScanIndex,
+  maxTokens: number,
+): ParsedTextReference[] {
+  const sourceReferences = overflowElement
+    ? sortReferencesByVisualOrder(index.elementRefs.get(overflowElement) ?? [])
+    : index.visualReferences;
+  const references: ParsedTextReference[] = [];
+  let tokens = 0;
+  let started = false;
+
+  for (const item of sourceReferences) {
+    if (isGrouped(item, index.grouped)) {
+      continue;
+    }
+
+    started = started || item === reference;
+
+    if (!started) {
+      continue;
+    }
+
+    const nextTokens = estimateReferenceTokens(item);
+
+    if (references.length > 0 && tokens + nextTokens > maxTokens) {
+      break;
+    }
+
+    references.push(item);
+    tokens += nextTokens;
+  }
+
+  return references.length > 0 ? references : [reference];
+}
+
+function estimateReferenceTokens(reference: ParsedTextReference): number {
+  return estimateTextTokens(reference.text) + estimatedJsonlOverhead;
 }
 
 function sortReferencesByVisualOrder(references: ParsedTextReference[]): ParsedTextReference[] {
