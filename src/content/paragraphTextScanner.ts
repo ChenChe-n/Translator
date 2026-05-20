@@ -96,17 +96,22 @@ function selectParagraphReferences(
   maxTokens: number,
 ): ParsedParagraphReference[] {
   const root = findParagraphRoot(reference.owner, index, maxTokens);
-  const references = root.element ? index.elementRefs.get(root.element) ?? [reference] : [reference];
-  const elementReferences = sortReferencesByVisualOrder(
-    references.filter((item) => !isGrouped(item, index.grouped)),
-  );
-  const selectedReferences = elementReferences.length > 1
-    ? elementReferences
-    : selectOverflowContainerReferences(reference, root.overflowElement, index, maxTokens);
+  const selectedReferences = root.overflowElement
+    ? selectOverflowContainerReferences(reference, root.overflowElement, index, maxTokens)
+    : selectFittingElementReferences(reference, root.element, index);
 
   return selectedReferences.map((item) => ({
     reference: item,
   }));
+}
+
+function selectFittingElementReferences(
+  reference: ParsedTextReference,
+  element: Element | undefined,
+  index: ParagraphScanIndex,
+): ParsedTextReference[] {
+  const references = element ? index.elementRefs.get(element) ?? [reference] : [reference];
+  return sortReferencesByVisualOrder(references.filter((item) => !isGrouped(item, index.grouped)));
 }
 
 function findParagraphRoot(
