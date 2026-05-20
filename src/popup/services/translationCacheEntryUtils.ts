@@ -6,6 +6,7 @@ import type {
   TranslationCacheSortKey,
   TranslationCacheViewEntry,
 } from '../types/translationCache';
+import { normalizeNoTranslationResult } from './translationResultNormalizer';
 
 /**
  * 创建缓存条目。
@@ -20,7 +21,7 @@ export function createCacheEntry(input: NormalTranslationCacheInput, text: strin
     sourceText: input.sourceText,
     sourceTextHash: input.sourceTextHash,
     targetLanguage: normalizeTargetLanguage(input.targetLanguage),
-    text,
+    text: normalizeNoTranslationResult(text, input.sourceText, input.targetLanguage),
     updatedAt: Date.now(),
   };
 }
@@ -120,7 +121,7 @@ export function toViewEntry(entry: TranslationCacheEntry): TranslationCacheViewE
   return {
     sourceText: entry.sourceText,
     targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
-    text: entry.text,
+    text: normalizeNoTranslationResult(entry.text, entry.sourceText, entry.targetLanguage),
     tid: entry.key,
     updatedAt: entry.updatedAt,
   };

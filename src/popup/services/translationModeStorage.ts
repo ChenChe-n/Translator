@@ -10,8 +10,24 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
   'Input is JSONL: one object per line, one Tid key per object.\n' +
   'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
+  'Keep each Tid exactly as given.\n' +
+  'If a value is already in the target locale, is empty, is only numbers/symbols, or should be kept unchanged, output JSON null.\n' +
+  'Never output skip phrases such as "不翻译", "no translation", "do not translate", or the string "null".\n' +
+  'When translating, output only the translated string value.';
+
+const legacyNormalTranslationPrompts = [
+  'You are a translation engine.\n' +
+  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
+  'Input is JSONL: one object per line, one Tid key per object.\n' +
+  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
   'Keep each Tid exactly as given. Translate values only when the source text is not already in the target locale.\n' +
-  'Use null when the value is already in the target locale, empty, non-text noise, or should not be translated.';
+  'Use null when the value is already in the target locale, empty, non-text noise, or should not be translated.',
+  'You are a translation engine.\n' +
+  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
+  'Input is JSONL: one object per line, one Tid key per object.\n' +
+  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
+  'Keep each Tid exactly as given. Translate values; copy unchanged text when no translation is needed. Use null only for empty or non-text noise.',
+];
 
 export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
 export const ACTIVE_TRANSLATION_MODE_KEY = 'Translator.translationMode.activeMode';
@@ -138,7 +154,7 @@ function normalizeModeConfig(
     ...defaultConfig,
     ...config,
     mode,
-    prompt: config?.prompt || defaultConfig.prompt,
+    prompt: normalizePrompt(mode, config?.prompt, defaultConfig.prompt),
     parameters: {
       ...defaultConfig.parameters,
       ...config?.parameters,
@@ -159,6 +175,23 @@ function normalizeModeConfig(
 
 function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
+}
+
+function normalizePrompt(mode: TranslationModeKey, prompt: string | undefined, fallback: string): string {
+  if (!prompt) {
+    return fallback;
+  }
+
+  return mode === 'normal' && isLegacyNormalPrompt(prompt) ? fallback : prompt;
+}
+
+function isLegacyNormalPrompt(prompt: string): boolean {
+  const normalizedPrompt = normalizePromptText(prompt);
+  return legacyNormalTranslationPrompts.some((item) => normalizePromptText(item) === normalizedPrompt);
+}
+
+function normalizePromptText(prompt: string): string {
+  return prompt.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeMode(value: unknown): TranslationModeKey {

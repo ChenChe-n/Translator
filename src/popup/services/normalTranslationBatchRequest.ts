@@ -9,6 +9,7 @@ import {
 } from './normalTranslationCache';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { parseChatJsonlResults } from './translationJsonlParser';
+import { normalizeNoTranslationResult } from './translationResultNormalizer';
 import { readJsonlTranslationStream } from './translationStreamReader';
 
 /**
@@ -27,6 +28,7 @@ export async function requestNormalTranslationBatch(batch: NormalTranslationPend
 
   try {
     callLog = await readBatchResults(apiConfig, config, batch, body, idSet, results);
+    normalizeBatchResults(batch, results);
     await writeBatchCache(batch, config, results);
     resolveBatchResults(batch, results);
   } catch (error) {
@@ -66,7 +68,17 @@ function renderPrompt(config: TranslationModeConfig, targetLanguage: string): st
     : 'Output plain translated text';
   return config.prompt
     .replaceAll('{FORMAT_MODE}', preserveText)
-    .replaceAll('{TARGET_LOCALE}', targetLanguage || 'en-us');
+    .replaceAll('{TARGET_LOCALE}', describeTargetLanguage(targetLanguage));
+}
+
+function describeTargetLanguage(targetLanguage: string): string {
+  const language = targetLanguage.trim().toLowerCase() || 'en-us';
+  const languageNames: Record<string, string> = {
+    'en-us': 'en-us (English, United States)',
+    'zh-hans': 'zh-hans (Simplified Chinese)',
+  };
+
+  return languageNames[language] ?? language;
 }
 
 async function readBatchResults(
@@ -104,8 +116,9 @@ async function readStreamBatchResults(
     response: responseInfo.response,
     onResult: (tid, text) => {
       if (!results.has(tid)) {
-        results.set(tid, text);
-        resolveMatched(batch, config, tid, text);
+        const normalizedText = normalizeBatchResultText(batch, tid, text);
+        results.set(tid, normalizedText);
+        resolveMatched(batch, config, tid, normalizedText);
       }
     },
     onContent: async (content) => {
@@ -148,6 +161,22 @@ function resolveBatchResults(batch: NormalTranslationPendingItem[], results: Map
 
     item.reject(new Error('api.errors.translationResultMissing'));
   });
+}
+
+function normalizeBatchResults(
+  batch: NormalTranslationPendingItem[],
+  results: Map<string, string | null>,
+): void {
+  results.forEach((text, tid) => results.set(tid, normalizeBatchResultText(batch, tid, text)));
+}
+
+function normalizeBatchResultText(
+  batch: NormalTranslationPendingItem[],
+  tid: string,
+  text: string | null,
+): string | null {
+  const item = batch.find((pendingItem) => pendingItem.id === tid);
+  return item ? normalizeNoTranslationResult(text, item.text, item.targetLanguage) : text;
 }
 
 function resolveMatched(

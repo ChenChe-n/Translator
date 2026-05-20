@@ -31,6 +31,7 @@ import {
   readTranslationTidPrefix,
 } from './translationCacheKey';
 import { createCacheEntryStorageKey } from './translationCacheKeys';
+import { normalizeNoTranslationResult } from './translationResultNormalizer';
 export type {
   NormalTranslationCacheInput,
   TranslationCacheMode,
@@ -176,7 +177,10 @@ async function readTranslationCache(
   const [entry] = entryKey ? await readStoredTranslationCacheEntries([entryKey]) : [];
 
   return isEntryMatched(entry, { ...input, tid: entry?.key ?? input.tid })
-    ? { text: entry?.text ?? null, tid: entry?.key ?? input.tid }
+    ? {
+      text: normalizeNoTranslationResult(entry?.text ?? null, input.sourceText, input.targetLanguage),
+      tid: entry?.key ?? input.tid,
+    }
     : undefined;
 }
 

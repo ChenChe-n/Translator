@@ -140,7 +140,7 @@
   "cache.selectLanguage": "Choose a target language.",
   "cache.contextPlaceholder": "Context mode cache is not implemented yet.",
   "cache.entryCount": "{count} entries",
-  "cache.noTranslation": "No translation",
+  "cache.noTranslation": "Skipped",
   "cache.sort.sourceText": "Source order",
   "cache.sort.tid": "TID order",
   "cache.columns.tid": "TID",

@@ -140,7 +140,7 @@
   "cache.selectLanguage": "请选择目标语言。",
   "cache.contextPlaceholder": "上下文模式缓存暂未实现。",
   "cache.entryCount": "{count} 条",
-  "cache.noTranslation": "不翻译",
+  "cache.noTranslation": "已跳过",
   "cache.sort.sourceText": "原文排序",
   "cache.sort.tid": "TID 排序",
   "cache.columns.tid": "TID",

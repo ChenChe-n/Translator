@@ -1,3 +1,5 @@
+import { normalizeTranslationTextLiteral } from './translationResultNormalizer';
+
 /**
  * 解析聊天响应中的 JSONL 翻译结果。
  *
@@ -207,7 +209,7 @@ function normalizeTranslationValue(value: unknown): string | null {
   }
 
   if (typeof value === 'string') {
-    return value;
+    return normalizeTranslationTextLiteral(value);
   }
 
   return String(value);
