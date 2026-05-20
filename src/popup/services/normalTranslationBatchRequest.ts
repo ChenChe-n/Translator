@@ -117,10 +117,15 @@ async function readBatchResults(
 ): Promise<Awaited<ReturnType<typeof requestChatResponse>>['callLog']> {
   const responseInfo = await requestChatResponse(apiConfig, body);
 
-  if (isStreamResponse(responseInfo.response)) {
-    await readStreamBatchResults(responseInfo, batch, body, results, idSet);
-  } else {
-    await readJsonBatchResults(responseInfo, apiConfig, body, results, idSet);
+  try {
+    if (isStreamResponse(responseInfo.response)) {
+      await readStreamBatchResults(responseInfo, batch, body, results, idSet);
+    } else {
+      await readJsonBatchResults(responseInfo, apiConfig, body, results, idSet);
+    }
+  } catch (error) {
+    await failRequestLog(responseInfo.callLog, error);
+    throw error;
   }
 
   return responseInfo.callLog;

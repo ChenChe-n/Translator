@@ -98,19 +98,20 @@ function normalizeLogs(logs: ModelCallLog[] | undefined): ModelCallLog[] {
 function normalizeLog(log: ModelCallLog): ModelCallLog {
   const createdAt = Number.isFinite(log.createdAt) ? log.createdAt : Date.now();
   const updatedAt = Number.isFinite(log.updatedAt) ? log.updatedAt : createdAt;
+  const status = normalizeLogStatus(log);
 
   return {
     id: log.id || `model-call-${Date.now()}`,
     model: log.model || '',
     input: log.input || '',
     output: log.output || '',
-    status: normalizeStatus(log.status),
+    status,
     createdAt,
     updatedAt,
     requestTokens: readOptionalNumber(log.requestTokens),
     responseTokens: readOptionalNumber(log.responseTokens),
-    durationMs: normalizeStatus(log.status) === 'running' ? undefined : Math.max(0, updatedAt - createdAt),
-    errorMessage: log.errorMessage,
+    durationMs: status === 'running' ? undefined : Math.max(0, updatedAt - createdAt),
+    errorMessage: readErrorMessage(log),
   };
 }
 
@@ -136,4 +137,23 @@ function readOptionalNumber(value: number | undefined): number | undefined {
 
 function normalizeStatus(status: ModelCallLog['status']): ModelCallLog['status'] {
   return status === 'finished' || status === 'error' ? status : 'running';
+}
+
+function normalizeLogStatus(log: ModelCallLog): ModelCallLog['status'] {
+  const status = normalizeStatus(log.status);
+  return status === 'running' && hasCompletedRawStream(log.output) ? 'error' : status;
+}
+
+function hasCompletedRawStream(output: string): boolean {
+  return output.includes('data: [DONE]') || output.includes('"finish_reason":"stop"');
+}
+
+function readErrorMessage(log: ModelCallLog): string | undefined {
+  if (log.errorMessage) {
+    return log.errorMessage;
+  }
+
+  return normalizeLogStatus(log) === 'error' && hasCompletedRawStream(log.output)
+    ? 'api.errors.incompleteTranslationResult'
+    : undefined;
 }
