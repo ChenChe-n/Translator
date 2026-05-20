@@ -33,10 +33,10 @@
         <span class="table-count">{{ t('cache.entryCount', { count: total }) }}</span>
         <ElSegmented v-model="sortKey" class="sort-selector" :options="sortOptions" size="small" />
       </div>
-      <ElTable class="cache-table" :data="entries" size="small" height="300" border>
-        <ElTableColumn prop="tid" :label="t('cache.columns.tid')" min-width="116" show-overflow-tooltip />
-        <ElTableColumn prop="sourceText" :label="t('cache.columns.source')" min-width="150" show-overflow-tooltip />
-        <ElTableColumn :label="t('cache.columns.result')" min-width="150" show-overflow-tooltip>
+      <ElTable class="cache-table" :data="entries" size="small" table-layout="fixed" border>
+        <ElTableColumn prop="tid" :label="t('cache.columns.tid')" width="78" show-overflow-tooltip />
+        <ElTableColumn prop="sourceText" :label="t('cache.columns.source')" min-width="112" show-overflow-tooltip />
+        <ElTableColumn :label="t('cache.columns.result')" min-width="112" show-overflow-tooltip>
           <template #default="{ row }: { row: TranslationCacheViewEntry }">
             {{ row.text ?? t('cache.noTranslation') }}
           </template>
@@ -45,8 +45,9 @@
       <ElPagination
         v-model:current-page="page"
         class="pager"
-        layout="prev, pager, next"
+        layout="prev, pager, next, jumper"
         :page-size="pageSize"
+        :pager-count="5"
         :total="total"
         small
       />
@@ -87,7 +88,7 @@ const activeLanguage = ref('');
 const entries = ref<TranslationCacheViewEntry[]>([]);
 const languages = ref<string[]>([]);
 const page = ref(1);
-const pageSize = 25;
+const pageSize = 10;
 const sortKey = ref<TranslationCacheSortKey>('sourceText');
 const total = ref(0);
 
@@ -187,93 +188,94 @@ async function refreshEntries(): Promise<void> {
 </script>
 
 <style scoped>
-.page-shell {
-  width: 100%;
-  min-height: 100%;
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  padding: 12px;
-  background: var(--translator-background);
-}
+.page-shell { width: 100%; height: 100%; display: grid; grid-template-rows: auto auto minmax(0, 1fr); gap: 8px; align-content: start; padding: 10px; background: var(--translator-background); overflow: hidden; }
 
-.table-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-}
+.table-toolbar,
+.cache-action-right { display: flex; align-items: center; gap: 6px; }
 
-.cache-action-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
+.table-toolbar { justify-content: space-between; }
+
+.cache-action-right { display: inline-flex; }
 
 .cache-block,
-.table-shell {
-  display: grid;
-  gap: 8px;
-}
+.table-shell { display: grid; grid-template-rows: auto minmax(0, auto) auto; gap: 6px; min-height: 0; }
 
-.block-title {
-  margin: 0;
-  color: var(--translator-text);
-  font-size: 13px;
-  font-weight: 600;
-}
+.block-title { margin: 0; color: var(--translator-text); font-size: 13px; font-weight: 600; line-height: 16px; }
 
 .block-description,
 .empty-text,
-.table-count {
-  margin: 0;
-  color: var(--translator-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
+.table-count { margin: 0; color: var(--translator-muted); font-size: 11px; line-height: 1.35; }
 
 .language-tabs {
   display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  scrollbar-width: none;
+  gap: 6px;
+  max-height: 28px;
+  overflow: hidden;
 }
 
-.language-tabs::-webkit-scrollbar {
-  display: none;
-}
+.language-tab { height: 28px; flex: 0 0 auto; min-width: 80px; padding: 0 10px; border: 1px solid var(--translator-border); border-radius: 8px; background: var(--translator-button); color: var(--translator-text); font-size: 12px; cursor: pointer; }
 
-.language-tab {
-  height: 32px;
-  flex: 0 0 auto;
-  min-width: 86px;
-  padding: 0 10px;
-  border: 1px solid var(--translator-border);
-  border-radius: 8px;
-  background: var(--translator-button);
-  color: var(--translator-text);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.language-tab.active {
-  border-color: var(--translator-key-button);
-  background: var(--translator-key-button);
-  color: var(--translator-button);
-  box-shadow: 0 8px 18px var(--translator-shadow);
-}
+.language-tab.active { border-color: var(--translator-key-button); background: var(--translator-key-button); color: var(--translator-button); box-shadow: 0 8px 18px var(--translator-shadow); }
 
 .sort-selector {
-  width: 160px;
+  width: 136px;
 }
 
 .cache-table {
   --el-table-bg-color: var(--translator-container);
   --el-table-tr-bg-color: var(--translator-container);
   --el-table-header-bg-color: var(--translator-button);
+  width: 100%;
+}
+
+.cache-table :deep(.el-table__cell) {
+  padding: 1px 0;
+}
+
+.cache-table :deep(.el-table__inner-wrapper::before) {
+  display: none;
+}
+
+.cache-table :deep(.el-table__body-wrapper),
+.cache-table :deep(.el-scrollbar),
+.cache-table :deep(.el-scrollbar__wrap) {
+  overflow: hidden;
+}
+
+.cache-table :deep(.cell) {
+  overflow: hidden;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pager {
+  height: 24px;
+  max-width: 100%;
   justify-content: center;
+  overflow: hidden;
+}
+
+.pager :deep(.btn-prev),
+.pager :deep(.btn-next),
+.pager :deep(.el-pager li) {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  font-size: 11px;
+}
+
+.pager :deep(.el-pagination__jump) {
+  margin-left: 4px;
+}
+
+.pager :deep(.el-pagination__goto),
+.pager :deep(.el-pagination__classifier) {
+  display: none;
+}
+
+.pager :deep(.el-input__wrapper) {
+  width: 42px;
+  padding: 0 4px;
 }
 </style>

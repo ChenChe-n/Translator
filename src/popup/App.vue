@@ -3,7 +3,7 @@
     <nav class="tab-nav" :aria-label="t('app.navAria')">
       <ElSegmented v-model="activeTab" class="tab-selector" :options="tabOptions" />
     </nav>
-    <section class="page-stage">
+    <section class="page-stage" :class="{ 'page-stage--cache': activeTab === 'cache' }">
       <Transition name="page-fade" mode="out-in">
         <component :is="activePanel" :key="activeTab" />
       </Transition>
@@ -106,6 +106,10 @@ useThemeScheme();
   border-radius: 8px;
   background: var(--translator-container);
   overflow: auto;
+}
+
+.page-stage--cache {
+  overflow: hidden;
 }
 
 .page-fade-enter-active,
