@@ -6,28 +6,13 @@ import type {
 import { clearConfigMapStorage, loadConfigMapFromStorage, saveConfigMapToStorage } from './configMapStorage';
 
 export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
-  'You are a translation engine.\n' +
-  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
-  'Input is JSONL: one object per line, one Tid key per object.\n' +
-  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
-  'Keep each Tid exactly as given.\n' +
-  'If a value is already in the target locale, is empty, is only numbers/symbols, or should be kept unchanged, output JSON null.\n' +
-  'Never output skip phrases such as "不翻译", "no translation", "do not translate", or the string "null".\n' +
-  'When translating, output only the translated string value.';
-
-const legacyNormalTranslationPrompts = [
-  'You are a translation engine.\n' +
-  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
-  'Input is JSONL: one object per line, one Tid key per object.\n' +
-  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
-  'Keep each Tid exactly as given. Translate values only when the source text is not already in the target locale.\n' +
-  'Use null when the value is already in the target locale, empty, non-text noise, or should not be translated.',
-  'You are a translation engine.\n' +
-  'Target locale: {TARGET_LOCALE}. Format mode: {FORMAT_MODE}.\n' +
-  'Input is JSONL: one object per line, one Tid key per object.\n' +
-  'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
-  'Keep each Tid exactly as given. Translate values; copy unchanged text when no translation is needed. Use null only for empty or non-text noise.',
-];
+  '你是翻译引擎。\n' +
+  '目标语言：{TARGET_LOCALE}。格式要求：{FORMAT_MODE}。\n' +
+  '输入是 JSONL，每行一个对象，每个对象只有一个 TID 键。\n' +
+  '输出也必须是 JSONL，每个输入行对应一个输出行，TID 必须完全不变。\n' +
+  '除非整句已经是目标语言，或整句是领域关键词、专有名词、代码、数字、符号，否则都应该翻译。\n' +
+  '整句无需翻译时输出 JSON null；不要输出“不翻译”等说明文字。\n' +
+  '需要翻译时只输出译文字符串。';
 
 export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
 export const ACTIVE_TRANSLATION_MODE_KEY = 'Translator.translationMode.activeMode';
@@ -154,7 +139,7 @@ function normalizeModeConfig(
     ...defaultConfig,
     ...config,
     mode,
-    prompt: normalizePrompt(mode, config?.prompt, defaultConfig.prompt),
+    prompt: config?.prompt || defaultConfig.prompt,
     parameters: {
       ...defaultConfig.parameters,
       ...config?.parameters,
@@ -175,23 +160,6 @@ function normalizeModeConfig(
 
 function normalizeNumber(value: number | undefined, min: number, max: number, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
-}
-
-function normalizePrompt(mode: TranslationModeKey, prompt: string | undefined, fallback: string): string {
-  if (!prompt) {
-    return fallback;
-  }
-
-  return mode === 'normal' && isLegacyNormalPrompt(prompt) ? fallback : prompt;
-}
-
-function isLegacyNormalPrompt(prompt: string): boolean {
-  const normalizedPrompt = normalizePromptText(prompt);
-  return legacyNormalTranslationPrompts.some((item) => normalizePromptText(item) === normalizedPrompt);
-}
-
-function normalizePromptText(prompt: string): string {
-  return prompt.replace(/\s+/g, ' ').trim();
 }
 
 function normalizeMode(value: unknown): TranslationModeKey {

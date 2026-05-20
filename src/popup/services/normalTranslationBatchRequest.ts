@@ -64,8 +64,8 @@ function buildRequestBody(
 
 function renderPrompt(config: TranslationModeConfig, targetLanguage: string): string {
   const preserveText = config.options.preserveFormatting
-    ? 'Preserve source formatting and placeholders'
-    : 'Output plain translated text';
+    ? '保留原文格式和占位符'
+    : '输出纯译文文本';
   return config.prompt
     .replaceAll('{FORMAT_MODE}', preserveText)
     .replaceAll('{TARGET_LOCALE}', describeTargetLanguage(targetLanguage));
@@ -74,8 +74,8 @@ function renderPrompt(config: TranslationModeConfig, targetLanguage: string): st
 function describeTargetLanguage(targetLanguage: string): string {
   const language = targetLanguage.trim().toLowerCase() || 'en-us';
   const languageNames: Record<string, string> = {
-    'en-us': 'en-us (English, United States)',
-    'zh-hans': 'zh-hans (Simplified Chinese)',
+    'en-us': '美国英语',
+    'zh-hans': '简体中文',
   };
 
   return languageNames[language] ?? language;
