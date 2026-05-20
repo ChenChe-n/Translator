@@ -13,8 +13,8 @@ type StoredRuntimeSettings = Partial<RuntimeSettings> & {
  */
 export function createDefaultRuntimeSettings(): RuntimeSettings {
   return {
-    parseEnabled: true,
-    translationEnabled: true,
+    parseEnabled: false,
+    translationEnabled: false,
     updateScope: 'foreground',
   };
 }
