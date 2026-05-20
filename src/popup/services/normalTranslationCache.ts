@@ -1,5 +1,5 @@
 import type { TranslationModeConfig } from '../types/translationMode';
-import type { NormalTranslationInput, NormalTranslationResult } from './normalTranslationService';
+import type { NormalTranslationInput, NormalTranslationResult } from '../types/normalTranslation';
 import { readNormalTranslationCache, writeNormalTranslationCache } from './translationCacheStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
