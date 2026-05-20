@@ -6,6 +6,22 @@ import type {
   TranslationCacheStats,
   TranslationCacheViewEntry,
 } from '../types/translationCache';
+import {
+  compareEntries,
+  createCacheEntry,
+  createScopedCacheKey,
+  isEntryMatched,
+  normalizeTargetLanguage,
+  pruneCache,
+  toStoragePair,
+  toViewEntry,
+} from './translationCacheEntryUtils';
+import { TRANSLATION_CACHE_STORAGE_KEYS } from './translationCacheKeys';
+import {
+  persistTranslationCache,
+  readStoredTranslationCache,
+  removeStoredTranslationCache,
+} from './translationCachePersistence';
 export type {
   NormalTranslationCacheInput,
   TranslationCacheMode,
@@ -14,15 +30,9 @@ export type {
   TranslationCacheViewEntry,
 } from '../types/translationCache';
 
-export const TRANSLATION_CACHE_STORAGE_KEYS: Record<TranslationCacheMode, string> = {
-  normal: 'Translator.translationCache.normal',
-  context: 'Translator.translationCache.context',
-};
-
-const maxCacheEntries = 5000;
-const saveDelayMs = 400;
 const memoryCaches: Partial<Record<TranslationCacheMode, Record<string, TranslationCacheEntry>>> = {};
-const saveTimers: Partial<Record<TranslationCacheMode, number>> = {};
+const pendingWrites: Partial<Record<TranslationCacheMode, Record<string, TranslationCacheEntry>>> = {};
+const saveChains: Partial<Record<TranslationCacheMode, Promise<void>>> = {};
 
 if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
   chrome.storage.onChanged.addListener((changes, areaName) => {
@@ -62,6 +72,18 @@ export async function writeNormalTranslationCache(
   text: string | null,
 ): Promise<void> {
   await writeTranslationCache('normal', input, text);
+}
+
+/**
+ * 批量写入普通模式翻译缓存。
+ *
+ * @param entries 缓存写入列表。
+ * @returns 无返回值。
+ */
+export async function writeNormalTranslationCacheBatch(
+  entries: Array<{ input: NormalTranslationCacheInput; text: string | null }>,
+): Promise<void> {
+  await writeTranslationCacheBatch('normal', entries, true);
 }
 
 /**
@@ -159,6 +181,7 @@ export async function importTranslationCacheEntries(
   mode: TranslationCacheMode,
   entries: TranslationCacheViewEntry[],
 ): Promise<void> {
+  await flushPendingCacheWrites(mode);
   await saveTranslationCache(mode, Object.fromEntries(entries.map(toStoragePair)));
 }
 
@@ -177,21 +200,40 @@ async function writeTranslationCache(
   input: NormalTranslationCacheInput,
   text: string | null,
 ): Promise<void> {
-  const cache = await loadTranslationCache(mode);
-  cache[createScopedCacheKey(input)] = createCacheEntry(input, text);
-  scheduleTranslationCacheSave(mode, cache);
+  await writeTranslationCacheBatch(mode, [{ input, text }], false);
 }
 
-async function clearTranslationCache(mode: TranslationCacheMode): Promise<void> {
-  memoryCaches[mode] = {};
-  window.clearTimeout(saveTimers[mode]);
-
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    localStorage.removeItem(TRANSLATION_CACHE_STORAGE_KEYS[mode]);
+async function writeTranslationCacheBatch(
+  mode: TranslationCacheMode,
+  entries: Array<{ input: NormalTranslationCacheInput; text: string | null }>,
+  flushNow: boolean,
+): Promise<void> {
+  if (entries.length === 0) {
     return;
   }
 
-  await chrome.storage.local.remove(TRANSLATION_CACHE_STORAGE_KEYS[mode]);
+  const cache = await loadTranslationCache(mode);
+  const pending = pendingWrites[mode] ?? {};
+
+  entries.forEach(({ input, text }) => {
+    const entry = createCacheEntry(input, text);
+    const key = createScopedCacheKey(input);
+    cache[key] = entry;
+    pending[key] = entry;
+  });
+
+  pendingWrites[mode] = pending;
+
+  if (flushNow) {
+    await flushPendingCacheWrites(mode);
+  }
+}
+
+async function clearTranslationCache(mode: TranslationCacheMode): Promise<void> {
+  await flushPendingCacheWrites(mode);
+  memoryCaches[mode] = {};
+  pendingWrites[mode] = {};
+  await removeStoredTranslationCache(mode);
 }
 
 async function loadTranslationCache(mode: TranslationCacheMode): Promise<Record<string, TranslationCacheEntry>> {
@@ -199,14 +241,7 @@ async function loadTranslationCache(mode: TranslationCacheMode): Promise<Record<
     return memoryCaches[mode];
   }
 
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    memoryCaches[mode] = readPreviewCache(mode);
-    return memoryCaches[mode];
-  }
-
-  const storageKey = TRANSLATION_CACHE_STORAGE_KEYS[mode];
-  const stored = await chrome.storage.local.get(storageKey);
-  memoryCaches[mode] = normalizeCache(stored[storageKey] as Record<string, TranslationCacheEntry>);
+  memoryCaches[mode] = await readStoredTranslationCache(mode);
   return memoryCaches[mode];
 }
 
@@ -215,117 +250,32 @@ async function saveTranslationCache(
   cache: Record<string, TranslationCacheEntry>,
 ): Promise<void> {
   memoryCaches[mode] = pruneCache(cache);
+  pendingWrites[mode] = {};
+  await persistTranslationCache(mode, memoryCaches[mode]);
+}
 
-  if (typeof chrome === 'undefined' || !chrome.storage?.local) {
-    localStorage.setItem(TRANSLATION_CACHE_STORAGE_KEYS[mode], JSON.stringify(memoryCaches[mode]));
+async function flushPendingCacheWrites(mode: TranslationCacheMode): Promise<void> {
+  const chain = saveChains[mode] ?? Promise.resolve();
+  const nextChain = chain.then(() => persistPendingWrites(mode));
+  saveChains[mode] = nextChain.catch(() => undefined);
+  await nextChain;
+}
+
+async function persistPendingWrites(mode: TranslationCacheMode): Promise<void> {
+  const pending = pendingWrites[mode];
+
+  if (!pending || Object.keys(pending).length === 0) {
     return;
   }
 
-  await chrome.storage.local.set({
-    [TRANSLATION_CACHE_STORAGE_KEYS[mode]]: memoryCaches[mode],
+  pendingWrites[mode] = {};
+  const storedCache = await readStoredTranslationCache(mode);
+  const nextCache = pruneCache({
+    ...storedCache,
+    ...pending,
   });
-}
-
-function scheduleTranslationCacheSave(
-  mode: TranslationCacheMode,
-  cache: Record<string, TranslationCacheEntry>,
-): void {
-  memoryCaches[mode] = cache;
-  window.clearTimeout(saveTimers[mode]);
-  saveTimers[mode] = window.setTimeout(() => {
-    void saveTranslationCache(mode, memoryCaches[mode] ?? {});
-  }, saveDelayMs);
-}
-
-function createCacheEntry(input: NormalTranslationCacheInput, text: string | null): TranslationCacheEntry {
-  return {
-    key: input.tid,
-    sourceText: input.sourceText,
-    targetLanguage: normalizeTargetLanguage(input.targetLanguage),
-    text,
-    updatedAt: Date.now(),
-  };
-}
-
-function isEntryMatched(
-  entry: TranslationCacheEntry | undefined,
-  input: NormalTranslationCacheInput,
-): boolean {
-  return Boolean(
-    entry
-      && entry.key === input.tid
-      && entry.sourceText === input.sourceText
-      && normalizeTargetLanguage(entry.targetLanguage) === normalizeTargetLanguage(input.targetLanguage),
-  );
-}
-
-function readPreviewCache(mode: TranslationCacheMode): Record<string, TranslationCacheEntry> {
-  const value = localStorage.getItem(TRANSLATION_CACHE_STORAGE_KEYS[mode]);
-  return normalizeCache(value ? (JSON.parse(value) as Record<string, TranslationCacheEntry>) : {});
-}
-
-function normalizeCache(
-  cache: Record<string, TranslationCacheEntry> | undefined,
-): Record<string, TranslationCacheEntry> {
-  return pruneCache(cache ?? {});
-}
-
-function pruneCache(cache: Record<string, TranslationCacheEntry>): Record<string, TranslationCacheEntry> {
-  return Object.fromEntries(
-    Object.entries(cache)
-      .filter(([, entry]) => Boolean(entry?.key && entry.sourceText && entry.targetLanguage))
-      .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
-      .slice(0, maxCacheEntries),
-  );
-}
-
-function toViewEntry(entry: TranslationCacheEntry): TranslationCacheViewEntry {
-  return {
-    sourceText: entry.sourceText,
-    targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
-    text: entry.text,
-    tid: entry.key,
-    updatedAt: entry.updatedAt,
-  };
-}
-
-function toStoragePair(entry: TranslationCacheViewEntry): [string, TranslationCacheEntry] {
-  const input = {
-    sourceText: entry.sourceText,
-    targetLanguage: entry.targetLanguage,
-    tid: entry.tid,
-  };
-
-  return [
-    createScopedCacheKey(input),
-    {
-      key: entry.tid,
-      sourceText: entry.sourceText,
-      targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
-      text: entry.text,
-      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : Date.now(),
-    },
-  ];
-}
-
-function compareEntries(
-  left: TranslationCacheViewEntry,
-  right: TranslationCacheViewEntry,
-  sortKey: TranslationCacheSortKey,
-): number {
-  if (sortKey === 'tid') {
-    return left.tid.localeCompare(right.tid);
-  }
-
-  return left.sourceText.localeCompare(right.sourceText);
-}
-
-function createScopedCacheKey(input: NormalTranslationCacheInput): string {
-  return `${normalizeTargetLanguage(input.targetLanguage)}:${input.tid}`;
-}
-
-function normalizeTargetLanguage(targetLanguage: string | undefined): string {
-  return targetLanguage?.trim().toLowerCase() || 'default';
+  await persistTranslationCache(mode, nextCache);
+  memoryCaches[mode] = nextCache;
 }
 
 function getCacheModes(): TranslationCacheMode[] {

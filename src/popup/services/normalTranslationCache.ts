@@ -1,6 +1,10 @@
 import type { TranslationModeConfig } from '../types/translationMode';
 import type { NormalTranslationInput, NormalTranslationResult } from '../types/normalTranslation';
-import { readNormalTranslationCache, writeNormalTranslationCache } from './translationCacheStorage';
+import {
+  readNormalTranslationCache,
+  writeNormalTranslationCache,
+  writeNormalTranslationCacheBatch,
+} from './translationCacheStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
 /**
@@ -57,6 +61,31 @@ export async function writeCachedNormalTranslation(
     targetLanguage,
     tid: await createTranslationCacheKey(sourceText),
   }, text);
+}
+
+/**
+ * 批量写入普通模式翻译缓存。
+ *
+ * @param config 翻译配置。
+ * @param entries 缓存写入列表。
+ * @returns 无返回值。
+ */
+export async function writeCachedNormalTranslationBatch(
+  config: TranslationModeConfig,
+  entries: Array<{ sourceText: string; targetLanguage: string; text: string | null }>,
+): Promise<void> {
+  if (!shouldUseNormalTranslationCache(config) || entries.length === 0) {
+    return;
+  }
+
+  await writeNormalTranslationCacheBatch(await Promise.all(entries.map(async (entry) => ({
+    input: {
+      sourceText: entry.sourceText,
+      targetLanguage: entry.targetLanguage,
+      tid: await createTranslationCacheKey(entry.sourceText),
+    },
+    text: entry.text,
+  }))));
 }
 
 function shouldUseNormalTranslationCache(config: TranslationModeConfig): boolean {

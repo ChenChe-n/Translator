@@ -3,7 +3,10 @@ import type { NormalTranslationPendingItem } from '../types/normalTranslation';
 import type { TranslationModeConfig } from '../types/translationMode';
 import { failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
-import { writeCachedNormalTranslation } from './normalTranslationCache';
+import {
+  writeCachedNormalTranslation,
+  writeCachedNormalTranslationBatch,
+} from './normalTranslationCache';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { parseChatJsonlResults } from './translationJsonlParser';
 import { readJsonlTranslationStream } from './translationStreamReader';
@@ -170,12 +173,15 @@ async function writeBatchCache(
   config: TranslationModeConfig,
   results: Map<string, string | null>,
 ): Promise<void> {
-  await Promise.all(
-    batch.map(async (item) => {
-      if (results.has(item.id)) {
-        await writeCachedNormalTranslation(config, item.text, results.get(item.id) ?? null, item.targetLanguage);
-      }
-    }),
+  await writeCachedNormalTranslationBatch(
+    config,
+    batch
+      .filter((item) => results.has(item.id))
+      .map((item) => ({
+        sourceText: item.text,
+        targetLanguage: item.targetLanguage,
+        text: results.get(item.id) ?? null,
+      })),
   );
 }
 

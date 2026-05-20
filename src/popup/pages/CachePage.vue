@@ -64,8 +64,8 @@ import PageClearButton from '../components/common/PageClearButton.vue';
 import JsonTransferButtons from '../components/common/JsonTransferButtons.vue';
 import { useI18n } from '../composables/useI18n';
 import { downloadJsonFile } from '../services/jsonFileTransfer';
+import { TRANSLATION_CACHE_STORAGE_KEYS } from '../services/translationCacheKeys';
 import {
-  TRANSLATION_CACHE_STORAGE_KEYS,
   clearContextTranslationCache,
   clearNormalTranslationCache,
   loadTranslationCacheLanguages,
