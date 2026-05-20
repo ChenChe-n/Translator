@@ -6,7 +6,7 @@ import { readCachedNormalTranslation, writeCachedNormalTranslation } from './nor
 import { requestChatResponse } from './openAiCompatibleClient';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
-import { parseChatJsonlResults, parseJsonlLines, readSseContent } from './translationJsonlParser';
+import { parseChatJsonlResults, parseCompleteTranslationResults, parseTranslationResults, readSseContent } from './translationJsonlParser';
 
 export interface NormalTranslationInput {
   text: string;
@@ -18,7 +18,10 @@ export interface NormalTranslationResult {
 }
 
 interface PendingItem {
+  apiConfig: ApiConfig;
+  config: TranslationModeConfig;
   id: string;
+  targetLanguage: string;
   text: string;
   resolve: (result: NormalTranslationResult) => void;
   reject: (error: unknown) => void;
@@ -26,9 +29,6 @@ interface PendingItem {
 
 const queue: PendingItem[] = [];
 let timer: number | undefined;
-let currentConfig: TranslationModeConfig | undefined;
-let currentApiConfig: ApiConfig | undefined;
-let currentTargetLanguage = '';
 
 /**
  * 提交普通模式翻译。
@@ -58,27 +58,22 @@ export async function translateNormalMode(
     return cachedResult;
   }
 
-  currentConfig = modeConfig;
-  currentApiConfig = apiConfig;
-  currentTargetLanguage = targetLanguage;
-
   return new Promise((resolve, reject) => {
     queue.push({
+      apiConfig,
+      config: modeConfig,
       id: '',
+      targetLanguage,
       text: input.text,
       resolve,
       reject,
     });
-    scheduleFlush();
+    scheduleFlush(modeConfig);
   });
 }
 
-function scheduleFlush(): void {
-  if (!currentConfig) {
-    return;
-  }
-
-  if (shouldFlushImmediately(currentConfig)) {
+function scheduleFlush(config: TranslationModeConfig): void {
+  if (shouldFlushImmediately(config)) {
     window.clearTimeout(timer);
     timer = undefined;
     void flushQueue();
@@ -89,7 +84,7 @@ function scheduleFlush(): void {
     return;
   }
 
-  timer = window.setTimeout(() => void flushQueue(), currentConfig.parameters.batchWaitMs);
+  timer = window.setTimeout(() => void flushQueue(), config.parameters.batchWaitMs);
 }
 
 function shouldFlushImmediately(config: TranslationModeConfig): boolean {
@@ -97,15 +92,15 @@ function shouldFlushImmediately(config: TranslationModeConfig): boolean {
 }
 
 async function flushQueue(): Promise<void> {
-  if (!currentApiConfig || !currentConfig || queue.length === 0) {
+  if (queue.length === 0) {
     return;
   }
 
   window.clearTimeout(timer);
   timer = undefined;
-  const activeConfig = currentConfig;
-  const activeApiConfig = currentApiConfig;
-  const activeTargetLanguage = currentTargetLanguage;
+  const activeConfig = queue[0].config;
+  const activeApiConfig = queue[0].apiConfig;
+  const activeTargetLanguage = queue[0].targetLanguage;
   const batch = takeBatch(activeConfig);
   await assignBatchIds(batch);
   const body = buildRequestBody(activeConfig, batch, activeTargetLanguage);
@@ -143,7 +138,7 @@ async function flushQueue(): Promise<void> {
     }
 
     await writeBatchCache(batch, activeConfig, results);
-    batch.forEach((item) => item.resolve({ tid: item.id, text: results.get(item.id) ?? null }));
+    resolveBatchResults(batch, results);
   } catch (error) {
     if (callLog) {
       await failRequestLog(callLog, error);
@@ -151,6 +146,17 @@ async function flushQueue(): Promise<void> {
 
     batch.forEach((item) => item.reject(error));
   }
+}
+
+function resolveBatchResults(batch: PendingItem[], results: Map<string, string | null>): void {
+  batch.forEach((item) => {
+    if (results.has(item.id)) {
+      item.resolve({ tid: item.id, text: results.get(item.id) ?? null });
+      return;
+    }
+
+    item.reject(new Error('api.errors.translationResultMissing'));
+  });
 }
 
 function takeBatch(config: TranslationModeConfig): PendingItem[] {
@@ -161,6 +167,10 @@ function takeBatch(config: TranslationModeConfig): PendingItem[] {
     const next = queue[0];
     const nextTokens = estimateTextTokens(next.text);
 
+    if (batch.length > 0 && !isSameBatchGroup(batch[0], next)) {
+      break;
+    }
+
     if (batch.length > 0 && tokens + nextTokens > config.parameters.batchMaxTokens) {
       break;
     }
@@ -170,10 +180,16 @@ function takeBatch(config: TranslationModeConfig): PendingItem[] {
   }
 
   if (queue.length > 0) {
-    scheduleFlush();
+    scheduleFlush(queue[0].config);
   }
 
   return batch;
+}
+
+function isSameBatchGroup(left: PendingItem, right: PendingItem): boolean {
+  return left.config === right.config
+    && left.apiConfig === right.apiConfig
+    && left.targetLanguage === right.targetLanguage;
 }
 
 function buildRequestBody(
@@ -235,14 +251,14 @@ async function readJsonlStream(
     if (parsed.content) {
       await onContent(parsed.content);
     }
-    jsonlBuffer = parseJsonlLines(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
+    jsonlBuffer = parseTranslationResults(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
   }
 
   const parsed = readSseContent(`${eventBuffer}${decoder.decode()}\n\n`);
   if (parsed.content) {
     await onContent(parsed.content);
   }
-  parseJsonlLines(`${jsonlBuffer}${parsed.content}\n`, idSet, onResult);
+  parseCompleteTranslationResults(`${jsonlBuffer}${parsed.content}`, idSet, onResult);
 }
 
 function resolveMatched(

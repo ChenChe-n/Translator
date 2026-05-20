@@ -12,14 +12,14 @@ export const DEFAULT_NORMAL_TRANSLATION_PROMPT =
   'Output only JSONL, one object per input line, no markdown, no extra text, no trailing commas.\n' +
   'Keep each Tid exactly as given. Translate values; copy unchanged text when no translation is needed. Use null only for empty or non-text noise.';
 
-const translationModeKeys: TranslationModeKey[] = ['normal', 'context'];
-const translationModeStorageKeys: Record<TranslationModeKey, string> = {
+export const TRANSLATION_MODE_KEYS: TranslationModeKey[] = ['normal', 'context'];
+export const TRANSLATION_MODE_STORAGE_KEYS: Record<TranslationModeKey, string> = {
   normal: 'Translator.translationMode.normal',
   context: 'Translator.translationMode.context',
 };
 const storageOptions = {
-  modes: translationModeKeys,
-  storageKeys: translationModeStorageKeys,
+  modes: TRANSLATION_MODE_KEYS,
+  storageKeys: TRANSLATION_MODE_STORAGE_KEYS,
   normalizeConfigMap,
 };
 
@@ -31,7 +31,7 @@ const storageOptions = {
 export function createDefaultTranslationModeConfigMap(): TranslationModeConfigMap {
   return {
     normal: createModeConfig('normal', DEFAULT_NORMAL_TRANSLATION_PROMPT),
-    context: createModeConfig('context', DEFAULT_NORMAL_TRANSLATION_PROMPT),
+    context: createModeConfig('context', ''),
   };
 }
 
@@ -85,7 +85,7 @@ function createModeConfig(mode: TranslationModeKey, prompt: string): Translation
 function normalizeConfigMap(configMap: Partial<TranslationModeConfigMap> | undefined): TranslationModeConfigMap {
   const defaultConfigMap = createDefaultTranslationModeConfigMap();
 
-  return translationModeKeys.reduce((result, mode) => {
+  return TRANSLATION_MODE_KEYS.reduce((result, mode) => {
     result[mode] = normalizeModeConfig(mode, defaultConfigMap[mode], configMap?.[mode]);
     return result;
   }, {} as TranslationModeConfigMap);

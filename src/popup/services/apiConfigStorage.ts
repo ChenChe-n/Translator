@@ -1,7 +1,7 @@
 import type { ApiCheckResult, ApiCheckResultMap, ApiConfig, ApiConfigState } from '../types/api';
 
-const CONFIG_STORAGE_KEY = 'Translator.apiConfig';
-const CONFIG_STATE_STORAGE_KEY = 'Translator.apiConfigState';
+export const CONFIG_STORAGE_KEY = 'Translator.apiConfig';
+export const CONFIG_STATE_STORAGE_KEY = 'Translator.apiConfigState';
 const CHECK_RESULTS_STORAGE_KEY = 'Translator.apiCheckResults';
 const CHECK_RESULT_MAP_STORAGE_KEY = 'Translator.apiCheckResultMap';
 

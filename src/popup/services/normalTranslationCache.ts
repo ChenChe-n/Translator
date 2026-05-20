@@ -1,6 +1,6 @@
 import type { TranslationModeConfig } from '../types/translationMode';
 import type { NormalTranslationInput, NormalTranslationResult } from './normalTranslationService';
-import { readNormalTranslationCache, writeNormalTranslationCache } from './normalTranslationCacheStorage';
+import { readNormalTranslationCache, writeNormalTranslationCache } from './translationCacheStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
 
 /**
@@ -20,7 +20,6 @@ export async function readCachedNormalTranslation(
 
   const tid = await createTranslationCacheKey(input.text);
   const cached = await readNormalTranslationCache({
-    config,
     sourceText: input.text,
     tid,
   });
@@ -51,7 +50,6 @@ export async function writeCachedNormalTranslation(
   }
 
   await writeNormalTranslationCache({
-    config,
     sourceText,
     tid: await createTranslationCacheKey(sourceText),
   }, text);

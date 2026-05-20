@@ -17,10 +17,10 @@
         {{ option.label }}
       </button>
     </div>
-    <section v-if="expanded" class="mode-form">
+    <section v-if="expanded && activeMode === 'normal'" class="mode-form">
       <NormalTranslationForm
         :config="activeConfig"
-        :show-normal-options="activeMode === 'normal'"
+        :show-normal-options="true"
         @update="updateActiveConfig"
       />
     </section>

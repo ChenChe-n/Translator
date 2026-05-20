@@ -1,6 +1,9 @@
 <template>
   <section class="page-shell" :aria-label="t('app.tabs.config')">
-    <PageClearButton @clear="handleClearPage" />
+    <div class="page-action-row">
+      <ConfigTransferButtons @imported="handleConfigImported" />
+      <PageClearButton @clear="handleClearPage" />
+    </div>
     <section class="config-block">
       <h2 class="block-title">{{ t('theme.panelTitle') }}</h2>
       <p class="block-description">{{ t('theme.panelDescription') }}</p>
@@ -62,6 +65,7 @@
 import { ElMessage, ElOption, ElSelect } from 'element-plus';
 import { computed, onMounted, reactive, ref } from 'vue';
 import type { LocaleCode } from '../../i18n';
+import ConfigTransferButtons from '../components/config/ConfigTransferButtons.vue';
 import PageClearButton from '../components/common/PageClearButton.vue';
 import TextParseModeTabs from '../components/config/TextParseModeTabs.vue';
 import TranslationModeTabs from '../components/config/TranslationModeTabs.vue';
@@ -70,7 +74,7 @@ import ThemeColorEditor from '../components/theme/ThemeColorEditor.vue';
 import ThemeSchemeTabs from '../components/theme/ThemeSchemeTabs.vue';
 import { useI18n } from '../composables/useI18n';
 import { useThemeScheme } from '../composables/useThemeScheme';
-import { resolveThemeColors } from '../services/themeRuntime';
+import { applyThemeColors, resolveThemeColors } from '../services/themeRuntime';
 import {
   clearRuntimeSettings,
   createDefaultRuntimeSettings,
@@ -84,7 +88,7 @@ import {
   loadTranslationModeConfigMap,
   saveTranslationModeConfigMap,
 } from '../services/translationModeStorage';
-import { clearNormalTranslationCache } from '../services/normalTranslationCacheStorage';
+import { clearTranslationCaches } from '../services/translationCacheStorage';
 import {
   clearTextParseModeConfigMap,
   createDefaultTextParseModeConfigMap,
@@ -97,6 +101,7 @@ import type { TextParseModeConfigMap, TextParseModeKey } from '../types/textPars
 import type { TranslationModeConfigMap, TranslationModeKey } from '../types/translationMode';
 import type { ThemeColors } from '../types/theme';
 import type { RuntimeSettings, SettingsUpdateScope } from '../types/runtimeSettings';
+import type { ExportedConfigPackage } from '../services/configImportExport';
 
 const { reset: resetTheme, state: themeState, save } = useThemeScheme();
 const { locale, localeOptions, resetLocale, setLocale, t } = useI18n();
@@ -178,7 +183,7 @@ async function handleClearPage(): Promise<void> {
     resetTheme(),
     resetLocale(),
     clearTranslationModeConfigMap(),
-    clearNormalTranslationCache(),
+    clearTranslationCaches(),
     clearTextParseModeConfigMap(),
     clearRuntimeSettings(),
   ]);
@@ -188,10 +193,26 @@ async function handleClearPage(): Promise<void> {
   Object.assign(runtimeSettings, settings);
   activeTranslationMode.value = 'normal';
   activeTextParseMode.value = 'visible';
+  collapsePanels();
+  ElMessage.success(t('common.cleared'));
+}
+
+async function handleConfigImported(configPackage: ExportedConfigPackage): Promise<void> {
+  Object.assign(themeState, configPackage.themeSchemeState);
+  Object.assign(runtimeSettings, configPackage.runtimeSettings);
+  Object.assign(translationModeConfigMap, configPackage.translationModeConfigMap);
+  Object.assign(textParseModeConfigMap, configPackage.textParseMode.configMap);
+  await setLocale(configPackage.locale);
+  activeTextParseMode.value = configPackage.textParseMode.activeMode;
+  collapsePanels();
+  applyThemeColors(activeColors.value);
+}
+
+function collapsePanels(): void {
+  activeTranslationMode.value = 'normal';
   schemeExpanded.value = false;
   translationModeExpanded.value = false;
   textParseModeExpanded.value = false;
-  ElMessage.success(t('common.cleared'));
 }
 
 function handleSelectTranslationMode(mode: TranslationModeKey): void {
@@ -257,17 +278,22 @@ async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promis
   width: 100%;
   min-height: 100%;
   display: grid;
-  gap: 12px;
   align-content: start;
+  gap: 12px;
   padding: 12px;
   background: var(--translator-background);
+}
+
+.page-action-row {
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
 }
 
 .config-block {
   display: grid;
   gap: 8px;
 }
-
 .scheme-shell {
   display: grid;
   gap: 12px;
@@ -306,7 +332,5 @@ async function handleUpdateScopeUpdate(updateScope: SettingsUpdateScope): Promis
   font-size: 12px;
 }
 
-.language-select {
-  width: 150px;
-}
+.language-select { width: 150px; }
 </style>

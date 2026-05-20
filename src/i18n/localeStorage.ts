@@ -1,6 +1,6 @@
 import { normalizeLocaleCode, resolveBrowserLocale, type LocaleCode } from '.';
 
-const LOCALE_STORAGE_KEY = 'Translator.locale';
+export const LOCALE_STORAGE_KEY = 'Translator.locale';
 
 /**
  * 读取用户手动设置语言。

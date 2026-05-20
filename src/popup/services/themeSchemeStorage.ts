@@ -1,6 +1,6 @@
 import type { ThemeColors, ThemeScheme, ThemeSchemeState } from '../types/theme';
 
-const THEME_STORAGE_KEY = 'Translator.themeSchemeState';
+export const THEME_STORAGE_KEY = 'Translator.themeSchemeState';
 const SYSTEM_SCHEME_ID = 'system';
 
 export const dayColors: ThemeColors = {
