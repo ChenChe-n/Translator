@@ -116,6 +116,7 @@
   "api.errors.imageEnv": "请在插件环境中运行图片测试。",
   "api.errors.imageRead": "读取测试图片失败。",
   "api.errors.streamUnsupported": "当前环境不支持读取流式响应。",
+  "api.errors.emptyStreamOutput": "模型流式响应结束但没有返回可用文本，请检查是否启用了思考模式或调高最大 Token。",
   "api.errors.translationResultMissing": "模型未返回可匹配的翻译结果。",
   "api.errors.concurrencyTimeout": "模型请求等待并发空位超时。",
   "monitor.textParseDurationTitle": "文本解析用时",

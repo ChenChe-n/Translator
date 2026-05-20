@@ -1,5 +1,6 @@
 import type { ApiConfig } from '../types/api';
 import { acquireApiConcurrency } from './apiConcurrencyLimiter';
+import { createChatRequestPayload } from './chatRequestPayload';
 
 export interface ChatTransportResponse {
   response: Response;
@@ -27,10 +28,7 @@ export async function requestChat(config: ApiConfig, body: Record<string, unknow
         ...JSON_HEADERS,
         Authorization: `Bearer ${config.apiKey}`,
       },
-      body: JSON.stringify({
-        model: config.model,
-        ...body,
-      }),
+      body: JSON.stringify(createChatRequestPayload(config, body)),
     });
 
     if (!response.ok) {

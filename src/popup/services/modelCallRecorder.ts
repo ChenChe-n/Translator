@@ -1,5 +1,6 @@
 import type { ApiConfig } from '../types/api';
 import type { ModelCallLog } from '../types/modelCall';
+import { createChatRequestPayload } from './chatRequestPayload';
 import { createModelCallLog, updateModelCallLog } from './modelCallLogStorage';
 
 /**
@@ -12,14 +13,7 @@ import { createModelCallLog, updateModelCallLog } from './modelCallLogStorage';
 export async function createRequestLog(config: ApiConfig, body: Record<string, unknown>): Promise<ModelCallLog> {
   return createModelCallLog({
     model: config.model,
-    input: JSON.stringify(
-      {
-        model: config.model,
-        ...body,
-      },
-      null,
-      2,
-    ),
+    input: JSON.stringify(createChatRequestPayload(config, body), null, 2),
   });
 }
 

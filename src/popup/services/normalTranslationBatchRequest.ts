@@ -154,8 +154,17 @@ async function readStreamBatchResults(
       await updateRequestOutput(responseInfo.callLog, streamOutput);
     },
   });
+  ensureStreamOutput(streamOutput, results, idSet);
   await updateRequestOutput(responseInfo.callLog, streamOutput, true);
   await recordTranslationUsage(batch[0].apiConfig, body, streamOutput);
+}
+
+function ensureStreamOutput(streamOutput: string, results: Map<string, string | null>, idSet: Set<string>): void {
+  if (streamOutput.trim() || [...idSet].some((tid) => results.has(tid))) {
+    return;
+  }
+
+  throw new Error('api.errors.emptyStreamOutput');
 }
 
 async function readJsonBatchResults(
