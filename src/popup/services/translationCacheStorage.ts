@@ -2,51 +2,43 @@ import type {
   NormalTranslationCacheInput,
   TranslationCacheEntry,
   TranslationCacheMode,
-  TranslationCacheSortKey,
   TranslationCacheStats,
-  TranslationCacheViewEntry,
 } from '../types/translationCache';
 import {
-  compareEntries,
+  addLanguageToIndex,
+  changeIndexCount,
   createCacheEntry,
-  createScopedCacheKey,
+  createEmptyCacheIndex,
   isEntryMatched,
   normalizeTargetLanguage,
-  pruneCache,
-  toStoragePair,
-  toViewEntry,
 } from './translationCacheEntryUtils';
-import { TRANSLATION_CACHE_STORAGE_KEYS } from './translationCacheKeys';
 import {
-  persistTranslationCache,
-  readStoredTranslationCache,
+  readStoredLanguageEntryKeys,
+  readStoredPrefixEntryKeys,
+  readStoredPrefixTids,
+  readStoredSourceEntries,
+  readStoredSourceTids,
+  readStoredTranslationCacheEntries,
+  readStoredTranslationCacheIndex,
   removeStoredTranslationCache,
+  writeStoredTranslationCacheEntrySet,
+  writeStoredTranslationCacheIndex,
+  writeStoredPrefixTids,
 } from './translationCachePersistence';
+import {
+  createTranslationHashPrefix,
+  createTranslationTid,
+  readTranslationTidPrefix,
+} from './translationCacheKey';
+import { createCacheEntryStorageKey } from './translationCacheKeys';
 export type {
   NormalTranslationCacheInput,
   TranslationCacheMode,
-  TranslationCacheSortKey,
   TranslationCacheStats,
-  TranslationCacheViewEntry,
 } from '../types/translationCache';
 
-const memoryCaches: Partial<Record<TranslationCacheMode, Record<string, TranslationCacheEntry>>> = {};
-const pendingWrites: Partial<Record<TranslationCacheMode, Record<string, TranslationCacheEntry>>> = {};
-const saveChains: Partial<Record<TranslationCacheMode, Promise<void>>> = {};
-
-if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local') {
-      return;
-    }
-
-    getCacheModes().forEach((mode) => {
-      if (changes[TRANSLATION_CACHE_STORAGE_KEYS[mode]]) {
-        memoryCaches[mode] = undefined;
-      }
-    });
-  });
-}
+const indexCaches: Partial<Record<TranslationCacheMode, TranslationCacheStats & { languages: string[] }>> = {};
+const operationChains: Partial<Record<TranslationCacheMode, Promise<unknown>>> = {};
 
 /**
  * 读取普通模式翻译缓存。
@@ -56,7 +48,7 @@ if (typeof chrome !== 'undefined' && chrome.storage?.onChanged) {
  */
 export async function readNormalTranslationCache(
   input: NormalTranslationCacheInput,
-): Promise<{ text: string | null } | undefined> {
+): Promise<{ text: string | null; tid: string } | undefined> {
   return readTranslationCache('normal', input);
 }
 
@@ -65,25 +57,60 @@ export async function readNormalTranslationCache(
  *
  * @param input 缓存写入输入。
  * @param text 翻译文本。
- * @returns 无返回值。
+ * @returns 写入后的 TID。
  */
 export async function writeNormalTranslationCache(
   input: NormalTranslationCacheInput,
   text: string | null,
-): Promise<void> {
-  await writeTranslationCache('normal', input, text);
+): Promise<string> {
+  return runExclusive('normal', () => writeTranslationCache('normal', input, text));
+}
+
+/**
+ * 写入指定模式翻译缓存。
+ *
+ * @param mode 翻译模式。
+ * @param input 缓存写入输入。
+ * @param text 翻译文本。
+ * @returns 写入后的 TID。
+ */
+export async function writeTranslationModeCache(
+  mode: TranslationCacheMode,
+  input: NormalTranslationCacheInput,
+  text: string | null,
+): Promise<string> {
+  return runExclusive(mode, () => writeTranslationCache(mode, input, text));
 }
 
 /**
  * 批量写入普通模式翻译缓存。
  *
  * @param entries 缓存写入列表。
- * @returns 无返回值。
+ * @returns 写入后的 TID 列表。
  */
 export async function writeNormalTranslationCacheBatch(
   entries: Array<{ input: NormalTranslationCacheInput; text: string | null }>,
-): Promise<void> {
-  await writeTranslationCacheBatch('normal', entries, true);
+): Promise<string[]> {
+  const tids: string[] = [];
+
+  for (const entry of entries) {
+    tids.push(await writeNormalTranslationCache(entry.input, entry.text));
+  }
+
+  return tids;
+}
+
+/**
+ * 分配普通模式缓存 TID。
+ *
+ * @param input 缓存输入。
+ * @returns 可复用或新建的 TID。
+ */
+export async function allocateNormalTranslationCacheTid(input: NormalTranslationCacheInput): Promise<string> {
+  return runExclusive('normal', async () => {
+    const existing = await findSourceEntry('normal', input);
+    return existing?.tid ?? await reserveCacheTid('normal', input);
+  });
 }
 
 /**
@@ -120,29 +147,7 @@ export async function clearTranslationCaches(): Promise<void> {
  * @returns 目标语言列表。
  */
 export async function loadTranslationCacheLanguages(mode: TranslationCacheMode): Promise<string[]> {
-  const cache = await loadTranslationCache(mode);
-  const languages = Object.values(cache).map((entry) => normalizeTargetLanguage(entry.targetLanguage));
-  return [...new Set(languages)].sort((left, right) => left.localeCompare(right));
-}
-
-/**
- * 读取缓存展示条目。
- *
- * @param mode 翻译模式。
- * @param targetLanguage 目标语言。
- * @param sortKey 排序字段。
- * @returns 缓存展示条目。
- */
-export async function loadTranslationCacheEntries(
-  mode: TranslationCacheMode,
-  targetLanguage: string,
-  sortKey: TranslationCacheSortKey,
-): Promise<TranslationCacheViewEntry[]> {
-  const cache = await loadTranslationCache(mode);
-  return Object.values(cache)
-    .filter((entry) => normalizeTargetLanguage(entry.targetLanguage) === normalizeTargetLanguage(targetLanguage))
-    .map(toViewEntry)
-    .sort((left, right) => compareEntries(left, right, sortKey));
+  return (await loadIndex(mode)).languages;
 }
 
 /**
@@ -152,130 +157,121 @@ export async function loadTranslationCacheEntries(
  * @returns 缓存统计。
  */
 export async function loadTranslationCacheStats(mode: TranslationCacheMode): Promise<TranslationCacheStats> {
-  const cache = await loadTranslationCache(mode);
+  const index = await loadIndex(mode);
 
   return {
     mode,
-    count: Object.keys(cache).length,
+    count: index.count,
   };
-}
-
-/**
- * 导出指定模式的缓存快照。
- *
- * @param mode 翻译模式。
- * @returns 缓存展示条目。
- */
-export async function exportTranslationCacheEntries(mode: TranslationCacheMode): Promise<TranslationCacheViewEntry[]> {
-  return Object.values(await loadTranslationCache(mode)).map(toViewEntry);
-}
-
-/**
- * 导入指定模式的缓存快照。
- *
- * @param mode 翻译模式。
- * @param entries 缓存展示条目。
- * @returns 无返回值。
- */
-export async function importTranslationCacheEntries(
-  mode: TranslationCacheMode,
-  entries: TranslationCacheViewEntry[],
-): Promise<void> {
-  await flushPendingCacheWrites(mode);
-  await saveTranslationCache(mode, Object.fromEntries(entries.map(toStoragePair)));
 }
 
 async function readTranslationCache(
   mode: TranslationCacheMode,
   input: NormalTranslationCacheInput,
-): Promise<{ text: string | null } | undefined> {
-  const cache = await loadTranslationCache(mode);
-  const entry = cache[createScopedCacheKey(input)];
+): Promise<{ text: string | null; tid: string } | undefined> {
+  const sourceEntry = await findSourceEntry(mode, input);
+  const entryKey = sourceEntry
+    ? createCacheEntryStorageKey(mode, normalizeTargetLanguage(input.targetLanguage), sourceEntry.tid)
+    : '';
+  const [entry] = entryKey ? await readStoredTranslationCacheEntries([entryKey]) : [];
 
-  return isEntryMatched(entry, input) ? { text: entry.text } : undefined;
+  return isEntryMatched(entry, { ...input, tid: entry?.key ?? input.tid })
+    ? { text: entry?.text ?? null, tid: entry?.key ?? input.tid }
+    : undefined;
 }
 
 async function writeTranslationCache(
   mode: TranslationCacheMode,
   input: NormalTranslationCacheInput,
   text: string | null,
-): Promise<void> {
-  await writeTranslationCacheBatch(mode, [{ input, text }], false);
+): Promise<string> {
+  const sourceEntry = await findSourceEntry(mode, input);
+  const nextInput = sourceEntry ? { ...input, tid: sourceEntry.tid } : { ...input, tid: await reserveCacheTid(mode, input) };
+  const entry = createCacheEntry(nextInput, text);
+  const existing = await readExistingTranslationEntry(mode, entry);
+  const index = addLanguageToIndex(await readStoredTranslationCacheIndex(mode), entry.targetLanguage);
+  const entryKey = createCacheEntryStorageKey(mode, entry.targetLanguage, entry.key);
+  const sourceTids = addUnique(await readStoredSourceTids(mode, entry.sourceTextHash), entry.key);
+  const prefix = readTranslationTidPrefix(entry.key);
+  const prefixTids = addUnique(await readStoredPrefixTids(mode, prefix), entry.key);
+  const prefixEntryKeys = addUnique(await readStoredPrefixEntryKeys(mode, prefix), entryKey);
+  const languageKeys = addUnique(await readStoredLanguageEntryKeys(mode, entry.targetLanguage), entryKey);
+  const allKeys = addUnique(await readStoredLanguageEntryKeys(mode, ''), entryKey);
+  const nextIndex = changeIndexCount(index, existing ? 0 : 1);
+
+  await writeStoredTranslationCacheEntrySet(
+    mode,
+    entry,
+    {
+      sourceText: entry.sourceText,
+      sourceTextHash: entry.sourceTextHash,
+      tid: entry.key,
+    },
+    sourceTids,
+    prefixTids,
+    prefixEntryKeys,
+    languageKeys,
+    allKeys,
+  );
+  await writeStoredTranslationCacheIndex(mode, nextIndex);
+  indexCaches[mode] = { count: nextIndex.count, languages: nextIndex.languages, mode };
+  return entry.key;
 }
 
-async function writeTranslationCacheBatch(
+async function findSourceEntry(
   mode: TranslationCacheMode,
-  entries: Array<{ input: NormalTranslationCacheInput; text: string | null }>,
-  flushNow: boolean,
-): Promise<void> {
-  if (entries.length === 0) {
-    return;
-  }
+  input: NormalTranslationCacheInput,
+): Promise<{ sourceText: string; sourceTextHash: string; tid: string } | undefined> {
+  const tids = await readStoredSourceTids(mode, input.sourceTextHash);
+  const entries = await readStoredSourceEntries(mode, tids);
+  return entries.find((entry) => entry.sourceText === input.sourceText);
+}
 
-  const cache = await loadTranslationCache(mode);
-  const pending = pendingWrites[mode] ?? {};
+async function readExistingTranslationEntry(
+  mode: TranslationCacheMode,
+  entry: TranslationCacheEntry,
+): Promise<TranslationCacheEntry | undefined> {
+  const entryKey = createCacheEntryStorageKey(mode, entry.targetLanguage, entry.key);
+  const [existing] = await readStoredTranslationCacheEntries([entryKey]);
+  return existing;
+}
 
-  entries.forEach(({ input, text }) => {
-    const entry = createCacheEntry(input, text);
-    const key = createScopedCacheKey(input);
-    cache[key] = entry;
-    pending[key] = entry;
-  });
-
-  pendingWrites[mode] = pending;
-
-  if (flushNow) {
-    await flushPendingCacheWrites(mode);
-  }
+async function reserveCacheTid(
+  mode: TranslationCacheMode,
+  input: NormalTranslationCacheInput,
+): Promise<string> {
+  const prefix = await createTranslationHashPrefix(input.sourceText);
+  const tids = await readStoredPrefixTids(mode, prefix);
+  const tid = createTranslationTid(prefix, tids.length);
+  await writeStoredPrefixTids(mode, prefix, [...tids, tid]);
+  return tid;
 }
 
 async function clearTranslationCache(mode: TranslationCacheMode): Promise<void> {
-  await flushPendingCacheWrites(mode);
-  memoryCaches[mode] = {};
-  pendingWrites[mode] = {};
   await removeStoredTranslationCache(mode);
+  await writeStoredTranslationCacheIndex(mode, createEmptyCacheIndex(mode));
+  indexCaches[mode] = undefined;
 }
 
-async function loadTranslationCache(mode: TranslationCacheMode): Promise<Record<string, TranslationCacheEntry>> {
-  if (memoryCaches[mode]) {
-    return memoryCaches[mode];
+async function loadIndex(mode: TranslationCacheMode): Promise<TranslationCacheStats & { languages: string[] }> {
+  if (indexCaches[mode]) {
+    return indexCaches[mode];
   }
 
-  memoryCaches[mode] = await readStoredTranslationCache(mode);
-  return memoryCaches[mode];
+  const index = await readStoredTranslationCacheIndex(mode);
+  indexCaches[mode] = { count: index.count, languages: index.languages, mode };
+  return indexCaches[mode];
 }
 
-async function saveTranslationCache(
-  mode: TranslationCacheMode,
-  cache: Record<string, TranslationCacheEntry>,
-): Promise<void> {
-  memoryCaches[mode] = pruneCache(cache);
-  pendingWrites[mode] = {};
-  await persistTranslationCache(mode, memoryCaches[mode]);
+function addUnique(values: string[], value: string): string[] {
+  return values.includes(value) ? values : [...values, value];
 }
 
-async function flushPendingCacheWrites(mode: TranslationCacheMode): Promise<void> {
-  const chain = saveChains[mode] ?? Promise.resolve();
-  const nextChain = chain.then(() => persistPendingWrites(mode));
-  saveChains[mode] = nextChain.catch(() => undefined);
-  await nextChain;
-}
-
-async function persistPendingWrites(mode: TranslationCacheMode): Promise<void> {
-  const pending = pendingWrites[mode];
-
-  if (!pending || Object.keys(pending).length === 0) {
-    return;
-  }
-
-  pendingWrites[mode] = {};
-  const storedCache = await readStoredTranslationCache(mode);
-  const nextCache = pruneCache({
-    ...storedCache,
-    ...pending,
-  });
-  await persistTranslationCache(mode, nextCache);
-  memoryCaches[mode] = nextCache;
+async function runExclusive<T>(mode: TranslationCacheMode, task: () => Promise<T>): Promise<T> {
+  const chain = operationChains[mode] ?? Promise.resolve();
+  const result = chain.then(task, task);
+  operationChains[mode] = result.catch(() => undefined);
+  return result;
 }
 
 function getCacheModes(): TranslationCacheMode[] {

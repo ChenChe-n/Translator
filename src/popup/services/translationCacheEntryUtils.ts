@@ -1,11 +1,11 @@
 import type {
   NormalTranslationCacheInput,
   TranslationCacheEntry,
+  TranslationCacheIndex,
+  TranslationCacheMode,
   TranslationCacheSortKey,
   TranslationCacheViewEntry,
 } from '../types/translationCache';
-
-const maxCacheEntries = 5000;
 
 /**
  * 创建缓存条目。
@@ -18,6 +18,7 @@ export function createCacheEntry(input: NormalTranslationCacheInput, text: strin
   return {
     key: input.tid,
     sourceText: input.sourceText,
+    sourceTextHash: input.sourceTextHash,
     targetLanguage: normalizeTargetLanguage(input.targetLanguage),
     text,
     updatedAt: Date.now(),
@@ -25,28 +26,19 @@ export function createCacheEntry(input: NormalTranslationCacheInput, text: strin
 }
 
 /**
- * 创建目标语言隔离的缓存键。
+ * 创建空缓存索引。
  *
- * @param input 缓存输入。
- * @returns 缓存键。
+ * @param mode 翻译模式。
+ * @returns 缓存索引。
  */
-export function createScopedCacheKey(input: NormalTranslationCacheInput): string {
-  return `${normalizeTargetLanguage(input.targetLanguage)}:${input.tid}`;
-}
-
-/**
- * 剪裁并清理缓存。
- *
- * @param cache 缓存对象。
- * @returns 清理后的缓存对象。
- */
-export function pruneCache(cache: Record<string, TranslationCacheEntry>): Record<string, TranslationCacheEntry> {
-  return Object.fromEntries(
-    Object.entries(cache)
-      .filter(([, entry]) => Boolean(entry?.key && entry.sourceText && entry.targetLanguage))
-      .sort(([, a], [, b]) => b.updatedAt - a.updatedAt)
-      .slice(0, maxCacheEntries),
-  );
+export function createEmptyCacheIndex(mode: TranslationCacheMode): TranslationCacheIndex {
+  return {
+    count: 0,
+    languages: [],
+    mode,
+    schemaVersion: 2,
+    updatedAt: Date.now(),
+  };
 }
 
 /**
@@ -74,8 +66,48 @@ export function isEntryMatched(
     entry
       && entry.key === input.tid
       && entry.sourceText === input.sourceText
+      && entry.sourceTextHash === input.sourceTextHash
       && normalizeTargetLanguage(entry.targetLanguage) === normalizeTargetLanguage(input.targetLanguage),
   );
+}
+
+/**
+ * 将语言写入索引。
+ *
+ * @param index 缓存索引。
+ * @param targetLanguage 目标语言。
+ * @returns 更新后的索引。
+ */
+export function addLanguageToIndex(index: TranslationCacheIndex, targetLanguage: string): TranslationCacheIndex {
+  const language = normalizeTargetLanguage(targetLanguage);
+
+  if (index.languages.includes(language)) {
+    return {
+      ...index,
+      updatedAt: Date.now(),
+    };
+  }
+
+  return {
+    ...index,
+    languages: [...index.languages, language].sort((left, right) => left.localeCompare(right)),
+    updatedAt: Date.now(),
+  };
+}
+
+/**
+ * 调整缓存总数。
+ *
+ * @param index 缓存索引。
+ * @param delta 数量变化。
+ * @returns 更新后的索引。
+ */
+export function changeIndexCount(index: TranslationCacheIndex, delta: number): TranslationCacheIndex {
+  return {
+    ...index,
+    count: Math.max(0, index.count + delta),
+    updatedAt: Date.now(),
+  };
 }
 
 /**
@@ -92,31 +124,6 @@ export function toViewEntry(entry: TranslationCacheEntry): TranslationCacheViewE
     tid: entry.key,
     updatedAt: entry.updatedAt,
   };
-}
-
-/**
- * 转为存储键值对。
- *
- * @param entry 展示条目。
- * @returns 存储键值对。
- */
-export function toStoragePair(entry: TranslationCacheViewEntry): [string, TranslationCacheEntry] {
-  const input = {
-    sourceText: entry.sourceText,
-    targetLanguage: entry.targetLanguage,
-    tid: entry.tid,
-  };
-
-  return [
-    createScopedCacheKey(input),
-    {
-      key: entry.tid,
-      sourceText: entry.sourceText,
-      targetLanguage: normalizeTargetLanguage(entry.targetLanguage),
-      text: entry.text,
-      updatedAt: Number.isFinite(entry.updatedAt) ? entry.updatedAt : Date.now(),
-    },
-  ];
 }
 
 /**

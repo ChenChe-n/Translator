@@ -14,6 +14,7 @@ export type TranslationCacheMode = TranslationModeKey;
  * 普通模式翻译缓存输入。
  */
 export interface NormalTranslationCacheInput {
+  sourceTextHash: string;
   sourceText: string;
   targetLanguage: string;
   tid: string;
@@ -44,7 +45,28 @@ export interface TranslationCacheStats {
 export interface TranslationCacheEntry {
   key: string;
   sourceText: string;
+  sourceTextHash: string;
   targetLanguage: string;
   text: string | null;
+  updatedAt: number;
+}
+
+/**
+ * 翻译缓存源文本记录。
+ */
+export interface TranslationCacheSourceEntry {
+  sourceText: string;
+  sourceTextHash: string;
+  tid: string;
+}
+
+/**
+ * 翻译缓存索引。
+ */
+export interface TranslationCacheIndex {
+  count: number;
+  languages: string[];
+  mode: TranslationCacheMode;
+  schemaVersion: 2;
   updatedAt: number;
 }

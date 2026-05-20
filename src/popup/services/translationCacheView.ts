@@ -3,7 +3,7 @@ import type {
   TranslationCacheSortKey,
   TranslationCacheViewEntry,
 } from '../types/translationCache';
-import { loadTranslationCacheEntries } from './translationCacheStorage';
+import { loadTranslationCacheEntries } from './translationCacheCatalog';
 
 /**
  * 翻译缓存分页结果。

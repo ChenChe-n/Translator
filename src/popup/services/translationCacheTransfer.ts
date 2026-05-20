@@ -1,5 +1,5 @@
 import type { TranslationCacheMode, TranslationCacheViewEntry } from '../types/translationCache';
-import { exportTranslationCacheEntries, importTranslationCacheEntries } from './translationCacheStorage';
+import { exportTranslationCacheEntries, importTranslationCacheEntries } from './translationCacheCatalog';
 
 /**
  * 翻译缓存导出包。

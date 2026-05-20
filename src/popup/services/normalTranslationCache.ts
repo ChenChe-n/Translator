@@ -1,11 +1,12 @@
 import type { TranslationModeConfig } from '../types/translationMode';
 import type { NormalTranslationInput, NormalTranslationResult } from '../types/normalTranslation';
 import {
+  allocateNormalTranslationCacheTid,
   readNormalTranslationCache,
   writeNormalTranslationCache,
   writeNormalTranslationCacheBatch,
 } from './translationCacheStorage';
-import { createTranslationCacheKey } from './translationCacheKey';
+import { createTranslationCacheKey, createTranslationSourceHash } from './translationCacheKey';
 
 /**
  * 读取普通模式翻译缓存结果。
@@ -24,15 +25,17 @@ export async function readCachedNormalTranslation(
   }
 
   const tid = await createTranslationCacheKey(input.text);
+  const sourceTextHash = await createTranslationSourceHash(input.text);
   const cached = await readNormalTranslationCache({
     sourceText: input.text,
+    sourceTextHash,
     targetLanguage,
     tid,
   });
 
   return cached
     ? {
-        tid,
+        tid: cached.tid,
         text: cached.text,
       }
     : undefined;
@@ -51,13 +54,14 @@ export async function writeCachedNormalTranslation(
   sourceText: string,
   text: string | null,
   targetLanguage: string,
-): Promise<void> {
+): Promise<string | undefined> {
   if (!shouldUseNormalTranslationCache(config)) {
-    return;
+    return undefined;
   }
 
-  await writeNormalTranslationCache({
+  return writeNormalTranslationCache({
     sourceText,
+    sourceTextHash: await createTranslationSourceHash(sourceText),
     targetLanguage,
     tid: await createTranslationCacheKey(sourceText),
   }, text);
@@ -73,19 +77,47 @@ export async function writeCachedNormalTranslation(
 export async function writeCachedNormalTranslationBatch(
   config: TranslationModeConfig,
   entries: Array<{ sourceText: string; targetLanguage: string; text: string | null }>,
-): Promise<void> {
+): Promise<string[]> {
   if (!shouldUseNormalTranslationCache(config) || entries.length === 0) {
-    return;
+    return [];
   }
 
-  await writeNormalTranslationCacheBatch(await Promise.all(entries.map(async (entry) => ({
+  return writeNormalTranslationCacheBatch(await Promise.all(entries.map(async (entry) => ({
     input: {
       sourceText: entry.sourceText,
+      sourceTextHash: await createTranslationSourceHash(entry.sourceText),
       targetLanguage: entry.targetLanguage,
       tid: await createTranslationCacheKey(entry.sourceText),
     },
     text: entry.text,
   }))));
+}
+
+/**
+ * 分配普通模式翻译 TID。
+ *
+ * @param config 翻译配置。
+ * @param sourceText 原文。
+ * @param targetLanguage 目标语言。
+ * @returns 翻译 TID。
+ */
+export async function allocateCachedNormalTranslationTid(
+  config: TranslationModeConfig,
+  sourceText: string,
+  targetLanguage: string,
+): Promise<string> {
+  const tid = await createTranslationCacheKey(sourceText);
+
+  if (!shouldUseNormalTranslationCache(config)) {
+    return tid;
+  }
+
+  return allocateNormalTranslationCacheTid({
+    sourceText,
+    sourceTextHash: await createTranslationSourceHash(sourceText),
+    targetLanguage,
+    tid,
+  });
 }
 
 function shouldUseNormalTranslationCache(config: TranslationModeConfig): boolean {

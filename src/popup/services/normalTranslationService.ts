@@ -4,7 +4,7 @@ import type {
   NormalTranslationPendingItem,
   NormalTranslationResult,
 } from '../types/normalTranslation';
-import { readCachedNormalTranslation } from './normalTranslationCache';
+import { allocateCachedNormalTranslationTid, readCachedNormalTranslation } from './normalTranslationCache';
 import { requestNormalTranslationBatch } from './normalTranslationBatchRequest';
 import { loadRuntimeSettings } from './runtimeSettingsStorage';
 import { createTranslationCacheKey } from './translationCacheKey';
@@ -222,6 +222,6 @@ function estimateTextTokens(text: string): number {
 
 async function assignBatchIds(batch: NormalTranslationPendingItem[]): Promise<void> {
   await Promise.all(batch.map(async (item) => {
-    item.id = item.id || await createTranslationCacheKey(item.text);
+    item.id = await allocateCachedNormalTranslationTid(item.config, item.text, item.targetLanguage);
   }));
 }
