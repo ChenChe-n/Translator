@@ -5,6 +5,9 @@ const dashScopeThinkingModels = [
   /^deepseek-v3\.2(?:-exp)?$/i,
   /^deepseek-v3\.1$/i,
 ];
+const deepSeekThinkingModels = [
+  /^deepseek-v4-(?:flash|pro)$/i,
+];
 
 /**
  * 创建实际发送给聊天接口的请求体。
@@ -23,6 +26,18 @@ export function createChatRequestPayload(config: ApiConfig, body: Record<string,
     return {
       ...payload,
       enable_thinking: false,
+      thinking: {
+        type: 'disabled',
+      },
+    };
+  }
+
+  if (shouldDisableDeepSeekThinking(config, payload)) {
+    return {
+      ...payload,
+      thinking: {
+        type: 'disabled',
+      },
     };
   }
 
@@ -35,9 +50,19 @@ function shouldDisableDashScopeThinking(config: ApiConfig, payload: Record<strin
     && isKnownThinkingModel(String(payload.model ?? config.model));
 }
 
+function shouldDisableDeepSeekThinking(config: ApiConfig, payload: Record<string, unknown>): boolean {
+  return !Object.hasOwn(payload, 'thinking')
+    && isDeepSeekBaseUrl(config.baseUrl)
+    && deepSeekThinkingModels.some((pattern) => pattern.test(String(payload.model ?? config.model).trim()));
+}
+
 function isDashScopeBaseUrl(baseUrl: string): boolean {
   const normalizedUrl = baseUrl.trim().toLowerCase();
   return normalizedUrl.includes('dashscope.aliyuncs.com') || normalizedUrl.includes('bailian.aliyuncs.com');
+}
+
+function isDeepSeekBaseUrl(baseUrl: string): boolean {
+  return baseUrl.trim().toLowerCase().includes('api.deepseek.com');
 }
 
 function isKnownThinkingModel(model: string): boolean {

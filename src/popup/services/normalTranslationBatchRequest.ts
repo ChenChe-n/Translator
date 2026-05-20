@@ -3,10 +3,8 @@ import type { NormalTranslationPendingItem } from '../types/normalTranslation';
 import type { TranslationModeConfig } from '../types/translationMode';
 import { failRequestLog, updateRequestOutput } from './modelCallRecorder';
 import { recordModelUsage } from './modelUsageStorage';
-import {
-  writeCachedNormalTranslation,
-  writeCachedNormalTranslationBatch,
-} from './normalTranslationCache';
+import { writeCachedNormalTranslationBatch } from './normalTranslationCache';
+import { ensureCompleteTranslationResults, ensureNonEmptyStreamOutput } from './normalTranslationResultGuard';
 import { requestChatResponse } from './openAiCompatibleClient';
 import { parseChatJsonlResults } from './translationJsonlParser';
 import { normalizeNoTranslationResult } from './translationResultNormalizer';
@@ -54,7 +52,8 @@ export async function requestNormalTranslationBatch(batch: NormalTranslationPend
   let callLog: Awaited<ReturnType<typeof requestChatResponse>>['callLog'] | undefined;
 
   try {
-    callLog = await readBatchResults(apiConfig, config, batch, body, idSet, results);
+    callLog = await readBatchResults(apiConfig, batch, body, idSet, results);
+    ensureCompleteTranslationResults(results, idSet);
     normalizeBatchResults(batch, results);
     await writeBatchCache(batch, config, results);
     resolveBatchResults(batch, results);
@@ -111,7 +110,6 @@ function createOutputExample(targetLanguage: string): string {
 
 async function readBatchResults(
   apiConfig: ApiConfig,
-  config: TranslationModeConfig,
   batch: NormalTranslationPendingItem[],
   body: Record<string, unknown>,
   idSet: Set<string>,
@@ -120,7 +118,7 @@ async function readBatchResults(
   const responseInfo = await requestChatResponse(apiConfig, body);
 
   if (isStreamResponse(responseInfo.response)) {
-    await readStreamBatchResults(responseInfo, config, batch, body, results, idSet);
+    await readStreamBatchResults(responseInfo, batch, body, results, idSet);
   } else {
     await readJsonBatchResults(responseInfo, apiConfig, body, results, idSet);
   }
@@ -130,7 +128,6 @@ async function readBatchResults(
 
 async function readStreamBatchResults(
   responseInfo: Awaited<ReturnType<typeof requestChatResponse>>,
-  config: TranslationModeConfig,
   batch: NormalTranslationPendingItem[],
   body: Record<string, unknown>,
   results: Map<string, string | null>,
@@ -146,7 +143,6 @@ async function readStreamBatchResults(
       if (!results.has(tid)) {
         const normalizedText = normalizeBatchResultText(batch, tid, text);
         results.set(tid, normalizedText);
-        resolveMatched(batch, config, tid, normalizedText);
       }
     },
     onContent: async (content) => {
@@ -154,17 +150,10 @@ async function readStreamBatchResults(
       await updateRequestOutput(responseInfo.callLog, streamOutput);
     },
   });
-  ensureStreamOutput(streamOutput, results, idSet);
+  ensureNonEmptyStreamOutput(streamOutput);
+  ensureCompleteTranslationResults(results, idSet);
   await updateRequestOutput(responseInfo.callLog, streamOutput, true);
   await recordTranslationUsage(batch[0].apiConfig, body, streamOutput);
-}
-
-function ensureStreamOutput(streamOutput: string, results: Map<string, string | null>, idSet: Set<string>): void {
-  if (streamOutput.trim() || [...idSet].some((tid) => results.has(tid))) {
-    return;
-  }
-
-  throw new Error('api.errors.emptyStreamOutput');
 }
 
 async function readJsonBatchResults(
@@ -214,24 +203,6 @@ function normalizeBatchResultText(
 ): string | null {
   const item = batch.find((pendingItem) => pendingItem.id === tid);
   return item ? normalizeNoTranslationResult(text, item.text, item.targetLanguage) : text;
-}
-
-function resolveMatched(
-  batch: NormalTranslationPendingItem[],
-  config: TranslationModeConfig,
-  tid: string,
-  text: string | null,
-): void {
-  const matchedItems = readRequiredItems(batch).filter((pendingItem) => pendingItem.id === tid);
-
-  matchedItems.forEach((item) => {
-    if (item.cacheWrite !== false) {
-      void writeCachedNormalTranslation(config, item.text, text, item.targetLanguage)
-        .catch(() => undefined);
-    }
-
-    item.resolve({ tid, text });
-  });
 }
 
 function isStreamResponse(response: Response): boolean {

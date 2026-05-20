@@ -117,6 +117,7 @@
   "api.errors.imageRead": "Failed to read the test image.",
   "api.errors.streamUnsupported": "The current environment does not support streaming responses.",
   "api.errors.emptyStreamOutput": "The streaming response finished without usable text. Check whether thinking mode is enabled or raise max tokens.",
+  "api.errors.incompleteTranslationResult": "The model output was incomplete. Raise max tokens or reduce the batch size.",
   "api.errors.translationResultMissing": "The model did not return a matching translation result.",
   "api.errors.concurrencyTimeout": "Timed out waiting for model request concurrency.",
   "monitor.textParseDurationTitle": "Text parse duration",
